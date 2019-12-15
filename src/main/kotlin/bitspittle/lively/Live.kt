@@ -15,26 +15,42 @@ abstract class Live<T> {
  *
  * Do not create directly; instead, use [Lively.create]
  */
-class MutableLive<T> private constructor(
-    private val lively: Lively,
-    initialValue: T,
-    private var observe: (LiveScope.() -> T)?
-) : Live<T>() {
+class MutableLive<T> private constructor(private val lively: Lively) : Live<T>() {
 
-    internal constructor(lively: Lively, initialValue: T) : this(lively, initialValue, null)
-    internal constructor(lively: Lively, observe: LiveScope.() -> T) : this(lively, lively.scope.observe(), observe)
+    private class WrappedValue<T>(var value: T)
+
+    internal constructor(lively: Lively, initialValue: T) : this(lively) {
+        snapshot = WrappedValue(initialValue)
+    }
+    internal constructor(lively: Lively, observe: LiveScope.() -> T) : this(lively) {
+        lively.scope.recordDependencies(this) { snapshot = WrappedValue(observe()) }
+        this.observe = observe
+    }
 
     init {
         lively.graph.add(this)
     }
 
-    private var value = initialValue
+    /**
+     * An instance which wraps the last snapshotted value.
+     *
+     * Note: Ideally this would have just been `private lateinit var snapshot: T` but
+     * lateinit does not support potentially nullable types, e.g. `T = Int?`
+     * By creating a wrapper class, we can ensure that `WrappedValue<T>` is a non-nullable type,
+     * even if `T` is itself nullable.
+     */
+    private lateinit var snapshot: WrappedValue<T>
 
-    override fun getSnapshot() = value
+    /**
+     * See [observe].
+     */
+    private var observe: (LiveScope.() -> T)? = null
+
+    override fun getSnapshot() = snapshot.value
 
     fun set(value: T) {
         if (observe != null) {
-            throw IllegalStateException("Can't set a Live value directly if it previously called `observe`")
+            throw IllegalStateException("Can't set a Live value directly if it previously called `observe`.")
         }
         handleSet(value)
     }
@@ -57,8 +73,8 @@ class MutableLive<T> private constructor(
     }
 
     private fun handleSet(value: T) {
-        val valueChanged = this.value != value
-        this.value = value
+        val valueChanged = snapshot.value != value
+        snapshot.value = value
         lively.graph.notifyUpdated(this, valueChanged)
     }
 }

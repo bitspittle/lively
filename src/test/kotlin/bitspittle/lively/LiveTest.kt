@@ -45,14 +45,21 @@ class LiveTest {
     fun observeWorks() {
         val lively = Lively(testGraph)
         val liveInt = lively.create(123)
-        val liveStr = lively.create("")
+        val liveStr1 = lively.createString()
+        assertThat(liveStr1.getSnapshot()).isEmpty()
 
-        liveStr.observe { liveInt.get().toString() }
-        assertThat(liveStr.getSnapshot()).isEqualTo("123")
+        val liveStr2 = lively.create { liveInt.get().toString() }
+        liveStr1.observe { liveInt.get().toString() }
+
+        assertThat(liveStr1.getSnapshot()).isEqualTo("123")
+        assertThat(liveStr2.getSnapshot()).isEqualTo("123")
 
         liveInt.set(456)
-        assertThat(liveStr.getSnapshot()).isEqualTo("123")
+        assertThat(liveStr1.getSnapshot()).isEqualTo("123")
+        assertThat(liveStr2.getSnapshot()).isEqualTo("123")
+
         lively.graph.update()
-        assertThat(liveStr.getSnapshot()).isEqualTo("456")
+        assertThat(liveStr1.getSnapshot()).isEqualTo("456")
+        assertThat(liveStr2.getSnapshot()).isEqualTo("456")
     }
 }
