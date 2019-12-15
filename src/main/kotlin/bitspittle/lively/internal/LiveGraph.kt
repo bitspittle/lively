@@ -13,8 +13,8 @@ class LiveGraph {
     private class Node {
         // TODO: Optimize this by only allocating sets on demand. Excessive allocation is fine
         //  to get things up and running though.
-        var dependsOn = mutableSetOf<Live<*>>()
-        var dependedOnBy = mutableSetOf<Live<*>>()
+        var dependencies = mutableSetOf<Live<*>>()
+        var dependents = mutableSetOf<Live<*>>()
     }
     private val nodes = mutableMapOf<Live<*>, Node>()
     private val dirtyLives = mutableSetOf<Live<*>>()
@@ -36,14 +36,14 @@ class LiveGraph {
             throw IllegalArgumentException("Graph cannot add unknown live value as dependency: $live")
         }
         nodes.getValue(live).apply {
-            dependsOn.forEach { dep ->
-                nodes.getValue(dep).dependedOnBy.remove(live)
+            dependencies.forEach { dep ->
+                nodes.getValue(dep).dependents.remove(live)
             }
-            dependsOn.clear()
-            dependsOn.addAll(deps)
+            dependencies.clear()
+            dependencies.addAll(deps)
         }
         deps.forEach { dep ->
-            nodes.getValue(dep).dependedOnBy.add(live)
+            nodes.getValue(dep).dependents.add(live)
         }
         // TODO: Ensure no cycles!
     }
@@ -64,7 +64,7 @@ class LiveGraph {
         dirtyLives.remove(live)
 
         if (valueChanged) {
-            val affectedLives = nodes.getValue(live).dependedOnBy.toMutableList()
+            val affectedLives = nodes.getValue(live).dependents.toMutableList()
 
             // Optimization: See comment in `update`
             // We can do this without worrying about an infinite loop because we know our graph
@@ -73,7 +73,7 @@ class LiveGraph {
             while (i < affectedLives.size) {
                 val affectedLive = affectedLives[i]
                 if (dirtyLives.add(affectedLive)) {
-                    affectedLives.addAll(nodes.getValue(affectedLive).dependedOnBy)
+                    affectedLives.addAll(nodes.getValue(affectedLive).dependents)
                 }
                 ++i
             }
