@@ -37,3 +37,11 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
         ownedLiveValues.add(MutableLive(this) { sideEffect() })
     }
 }
+
+fun Lively.createByte() = create(0.toByte())
+fun Lively.createShort() = create(0.toShort())
+fun Lively.createInt() = create(0)
+fun Lively.createLong() = create(0L)
+fun Lively.createFloat() = create(0.0f)
+fun Lively.createDouble() = create(0.0)
+fun Lively.createString() = create("")

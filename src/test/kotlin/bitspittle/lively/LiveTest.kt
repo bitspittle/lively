@@ -22,6 +22,26 @@ class LiveTest {
     }
 
     @Test
+    fun primitiveCreateMethodsWork() {
+        val lively = Lively(testGraph)
+        val liveByte: Live<Byte> = lively.createByte()
+        val liveShort: Live<Short> = lively.createShort()
+        val liveInt: Live<Int> = lively.createInt()
+        val liveLong: Live<Long> = lively.createLong()
+        val liveFloat: Live<Float> = lively.createFloat()
+        val liveDouble: Live<Double> = lively.createDouble()
+        val liveString: Live<String> = lively.createString()
+
+        assertThat(liveByte.getSnapshot()).isEqualTo(0.toByte())
+        assertThat(liveShort.getSnapshot()).isEqualTo(0.toShort())
+        assertThat(liveInt.getSnapshot()).isEqualTo(0)
+        assertThat(liveLong.getSnapshot()).isEqualTo(0.toLong())
+        assertThat(liveFloat.getSnapshot()).isEqualTo(0.0f)
+        assertThat(liveDouble.getSnapshot()).isEqualTo(0.0)
+        assertThat(liveString.getSnapshot()).isEqualTo("")
+    }
+
+    @Test
     fun observeWorks() {
         val lively = Lively(testGraph)
         val liveInt = lively.create(123)
