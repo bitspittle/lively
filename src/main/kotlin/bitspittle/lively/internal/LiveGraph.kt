@@ -35,6 +35,9 @@ class LiveGraph {
         if (deps.any { !nodes.contains(it) }) {
             throw IllegalArgumentException("Graph cannot add unknown live value as dependency: $live")
         }
+        if (deps.any { it.dependsOn(live) }) {
+            throw IllegalArgumentException("Attempting to add a cyclical dependency to: $live")
+        }
         nodes.getValue(live).apply {
             dependencies.forEach { dep ->
                 nodes.getValue(dep).dependents.remove(live)
@@ -107,5 +110,20 @@ class LiveGraph {
                 ++i
             }
         }
+    }
+
+    private fun Live<*>.dependsOn(other: Live<*>): Boolean {
+        val allDependencies = mutableListOf<Live<*>>()
+        allDependencies.addAll(nodes.getValue(this).dependencies)
+
+        var i = 0
+        while (i < allDependencies.size) {
+            val currDep = allDependencies[i]
+            if (currDep === other) return true
+            allDependencies.addAll(nodes.getValue(currDep).dependencies)
+            i++
+        }
+
+        return false
     }
 }

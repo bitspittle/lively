@@ -2,7 +2,9 @@ package bitspittle.lively
 
 import bitspittle.lively.internal.LiveGraph
 import bitspittle.truthish.assertThat
+import bitspittle.truthish.assertThrows
 import org.junit.Test
+import java.lang.IllegalArgumentException
 
 
 /**
@@ -68,5 +70,25 @@ class LiveTest {
         lively.graph.updateAll()
         assertThat(liveStr1.getSnapshot()).isEqualTo("789")
         assertThat(liveStr2.getSnapshot()).isEqualTo("789")
+    }
+
+    @Test
+    fun cyclesNotAllowed() {
+        val lively = Lively(testGraph)
+
+        val liveInt1 = lively.createInt()
+        val liveInt2 = lively.createInt()
+        val liveInt3 = lively.createInt()
+
+        liveInt3.observe { liveInt2.get() }
+        liveInt2.observe { liveInt1.get() }
+
+        assertThrows<IllegalArgumentException> {
+            liveInt1.observe { liveInt3.get() }
+        }
+
+        // Clearing the observe callback clears the dependencies
+        liveInt3.clearObserve()
+        liveInt1.observe { liveInt3.get() }
     }
 }

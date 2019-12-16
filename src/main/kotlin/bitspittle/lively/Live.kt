@@ -50,14 +50,22 @@ class MutableLive<T> private constructor(private val lively: Lively) : Live<T>()
 
     fun set(value: T) {
         if (observe != null) {
-            throw IllegalStateException("Can't set a Live value directly if it previously called `observe`.")
+            throw IllegalStateException(
+                "Can't set a Live value directly if it previously called `observe`. Call `clearObserve` maybe?")
         }
         handleSet(value)
     }
 
-    fun observe(observe: (LiveScope.() -> T)?) {
+    fun observe(observe: LiveScope.() -> T) {
         this.observe = observe
         runObserveIfNotNull()
+    }
+
+    fun clearObserve() {
+        if (this.observe != null) {
+            this.observe = null
+            lively.graph.setDependencies(this, emptyList())
+        }
     }
 
     override fun update() {
