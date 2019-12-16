@@ -48,7 +48,36 @@ class LiveGraph {
         // TODO: Ensure no cycles!
     }
 
-    internal fun update() {
+    internal fun update(live: Live<*>) {
+        if (!dirtyLives.contains(live)) {
+            return
+        }
+
+        val dirtyDependencies = mutableListOf(live)
+        // Optimization: Loop through nodes instead of repeatedly popping from index 0
+        var i = 0
+        while (i < dirtyDependencies.size) {
+            val currLive = dirtyDependencies[i]
+            val dirtyDeps = nodes.getValue(currLive).dependencies.filter { dep -> dirtyLives.contains(dep) }
+            dirtyDependencies.addAll(dirtyDeps)
+            ++i
+        }
+
+        // Insert live values to update in reverse order, meaning we update from source nodes first
+        // to destination nodes last
+        val livesToUpdate = LinkedHashSet<Live<*>>()
+        while (i > 0) {
+            i--
+            livesToUpdate.add(dirtyDependencies[i])
+        }
+
+        for (liveToUpdate in livesToUpdate) {
+            liveToUpdate.update()
+            dirtyLives.remove(liveToUpdate)
+        }
+    }
+
+    internal fun updateAll() {
         // TODO: Ensure loop order is from non-dependent nodes to dependent
         // Optimization: Loop through nodes instead of repeatedly popping from index 0
         var i = 0
