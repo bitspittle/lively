@@ -18,10 +18,13 @@ class LiveScope internal constructor(private val graph: LiveGraph) {
         recordedDepsStack.add(mutableSetOf())
         try {
             block()
+            graph.setDependencies(live, recordedDepsStack.last())
         }
         finally {
-            val newDeps = recordedDepsStack.removeAt(recordedDepsStack.lastIndex)
-            graph.setDependencies(live, newDeps)
+            recordedDepsStack.removeAt(recordedDepsStack.lastIndex)
         }
     }
+
+    internal val isRecording
+        get() = recordedDepsStack.size > 0
 }

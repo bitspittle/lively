@@ -1,6 +1,28 @@
 package bitspittle.lively
 
 abstract class Live<T> {
+    /**
+     * Grab the current value of this live instance.
+     *
+     * Note that the value returned here is *not* live, which is often what you actually want
+     * (otherwise, why are you even using a [Live] in the first place?). In most cases, you want to
+     * access this instance's value via its `get` method, which is only made available inside an
+     * `observe` block, e.g. within [Lively.create] and [Lively.observe].
+     *
+     * In other words:
+     *
+     * ```
+     * // Set only once...
+     * liveSrc.set("hello")
+     * liveDst.set(liveSrc.getSnapshot()) // dst -> "hello"
+     * liveSrc.set("world")               // dst -> "hello"
+     *
+     * // Kept in sync...
+     * liveSrc.set("hello")
+     * liveDst.observe { liveSrc.get() } // dst -> "hello"
+     * liveSrc.set("world")              // dst -> "world"
+     * ```
+     */
     abstract fun getSnapshot(): T
 
     internal abstract fun update()
@@ -46,7 +68,13 @@ class MutableLive<T> private constructor(private val lively: Lively) : Live<T>()
      */
     private var observe: (LiveScope.() -> T)? = null
 
-    override fun getSnapshot() = snapshot.value
+    override fun getSnapshot(): T {
+        if (!lively.scope.isRecording) {
+            // Avoid infinite recursion, as this method can get triggered by the scope
+            lively.graph.update(this)
+        }
+        return snapshot.value
+    }
 
     fun set(value: T) {
         if (observe != null) {
@@ -68,9 +96,7 @@ class MutableLive<T> private constructor(private val lively: Lively) : Live<T>()
         }
     }
 
-    override fun update() {
-        runObserveIfNotNull()
-    }
+    override fun update() = runObserveIfNotNull()
 
     private fun runObserveIfNotNull() {
         observe?.let { observe ->

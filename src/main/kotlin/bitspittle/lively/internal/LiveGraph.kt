@@ -10,43 +10,43 @@ class LiveGraph {
             get() = graphThreadLocal.get()
     }
 
-    private class Node {
+    private class LiveInfo {
         // TODO: Optimize this by only allocating sets on demand. Excessive allocation is fine
         //  to get things up and running though.
         var dependencies = mutableSetOf<Live<*>>()
         var dependents = mutableSetOf<Live<*>>()
     }
-    private val nodes = mutableMapOf<Live<*>, Node>()
+    private val liveInfo = mutableMapOf<Live<*>, LiveInfo>()
     private val dirtyLives = mutableSetOf<Live<*>>()
 
     // TODO: Add freeze concept
 
     internal fun add(live: Live<*>) {
-        if (nodes.contains(live)) {
+        if (liveInfo.contains(live)) {
             throw IllegalArgumentException("Duplicate live value added to graph: $live")
         }
-        nodes[live] = Node()
+        liveInfo[live] = LiveInfo()
     }
 
     internal fun setDependencies(live: Live<*>, deps: Collection<Live<*>>) {
-        if (!nodes.contains(live)) {
+        if (!liveInfo.contains(live)) {
             throw IllegalArgumentException("Graph cannot add dependencies for unknown live value: $live")
         }
-        if (deps.any { !nodes.contains(it) }) {
+        if (deps.any { !liveInfo.contains(it) }) {
             throw IllegalArgumentException("Graph cannot add unknown live value as dependency: $live")
         }
         if (deps.any { it.dependsOn(live) }) {
             throw IllegalArgumentException("Attempting to add a cyclical dependency to: $live")
         }
-        nodes.getValue(live).apply {
+        liveInfo.getValue(live).apply {
             dependencies.forEach { dep ->
-                nodes.getValue(dep).dependents.remove(live)
+                liveInfo.getValue(dep).dependents.remove(live)
             }
             dependencies.clear()
             dependencies.addAll(deps)
         }
         deps.forEach { dep ->
-            nodes.getValue(dep).dependents.add(live)
+            liveInfo.getValue(dep).dependents.add(live)
         }
         // TODO: Ensure no cycles!
     }
@@ -57,11 +57,10 @@ class LiveGraph {
         }
 
         val dirtyDependencies = mutableListOf(live)
-        // Optimization: Loop through nodes instead of repeatedly popping from index 0
         var i = 0
         while (i < dirtyDependencies.size) {
             val currLive = dirtyDependencies[i]
-            val dirtyDeps = nodes.getValue(currLive).dependencies.filter { dep -> dirtyLives.contains(dep) }
+            val dirtyDeps = liveInfo.getValue(currLive).dependencies.filter { dep -> dirtyLives.contains(dep) }
             dirtyDependencies.addAll(dirtyDeps)
             ++i
         }
@@ -80,9 +79,13 @@ class LiveGraph {
         }
     }
 
+    /**
+     * Update all dirty nodes.
+     *
+     * This operation may create new dirty nodes as an intermediate step, but even those will be
+     * updated.
+     */
     internal fun updateAll() {
-        // TODO: Ensure loop order is from non-dependent nodes to dependent
-        // Optimization: Loop through nodes instead of repeatedly popping from index 0
         var i = 0
         val dirtyLives = this.dirtyLives.toList()
         this.dirtyLives.clear()
@@ -96,16 +99,13 @@ class LiveGraph {
         dirtyLives.remove(live)
 
         if (valueChanged) {
-            val affectedLives = nodes.getValue(live).dependents.toMutableList()
+            val affectedLives = liveInfo.getValue(live).dependents.toMutableList()
 
-            // Optimization: See comment in `update`
-            // We can do this without worrying about an infinite loop because we know our graph
-            // doesn't have any cycles in it.
             var i = 0
             while (i < affectedLives.size) {
                 val affectedLive = affectedLives[i]
                 if (dirtyLives.add(affectedLive)) {
-                    affectedLives.addAll(nodes.getValue(affectedLive).dependents)
+                    affectedLives.addAll(liveInfo.getValue(affectedLive).dependents)
                 }
                 ++i
             }
@@ -114,13 +114,13 @@ class LiveGraph {
 
     private fun Live<*>.dependsOn(other: Live<*>): Boolean {
         val allDependencies = mutableListOf<Live<*>>()
-        allDependencies.addAll(nodes.getValue(this).dependencies)
+        allDependencies.addAll(liveInfo.getValue(this).dependencies)
 
         var i = 0
         while (i < allDependencies.size) {
             val currDep = allDependencies[i]
             if (currDep === other) return true
-            allDependencies.addAll(nodes.getValue(currDep).dependencies)
+            allDependencies.addAll(liveInfo.getValue(currDep).dependencies)
             i++
         }
 
