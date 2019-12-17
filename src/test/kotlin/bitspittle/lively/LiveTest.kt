@@ -57,8 +57,17 @@ class LiveTest {
         assertThat(liveStr2.getSnapshot()).isEqualTo("123")
 
         liveInt.set(456)
+        assertThat(liveStr1.getSnapshot()).isEqualTo("123")
+        assertThat(liveStr2.getSnapshot()).isEqualTo("123")
+
+        lively.graph.update(liveStr1)
         assertThat(liveStr1.getSnapshot()).isEqualTo("456")
-        assertThat(liveStr2.getSnapshot()).isEqualTo("456")
+        assertThat(liveStr2.getSnapshot()).isEqualTo("123")
+
+        liveInt.set(789)
+        lively.graph.updateAll()
+        assertThat(liveStr1.getSnapshot()).isEqualTo("789")
+        assertThat(liveStr2.getSnapshot()).isEqualTo("789")
     }
 
     @Test

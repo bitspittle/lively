@@ -2,12 +2,16 @@ package bitspittle.lively
 
 abstract class Live<T> {
     /**
-     * Grab the current value of this live instance.
+     * Grab the latest snapshot for this live instance.
      *
-     * Note that the value returned here is *not* live, which is often what you actually want
-     * (otherwise, why are you even using a [Live] in the first place?). In most cases, you want to
-     * access this instance's value via its `get` method, which is only made available inside an
-     * `observe` block, e.g. within [Lively.create] and [Lively.observe].
+     * Note that the value returned here is *not* live. That is, even if this live instance depends
+     * on another one, the snapshot may be stale. (It will get updated whenever the backing graph
+     * finishes its next update pass).
+     *
+     * Users of this class often actually want the live value (otherwise, why even using a `Live`
+     * in the first place?). Therefore, in most cases, users should access this instance's value
+     * via its `get` method, which is only made available inside an `observe` block, e.g. within
+     * [Lively.create] and [Lively.observe].
      *
      * In other words:
      *
@@ -68,13 +72,7 @@ class MutableLive<T> private constructor(private val lively: Lively) : Live<T>()
      */
     private var observe: (LiveScope.() -> T)? = null
 
-    override fun getSnapshot(): T {
-        if (!lively.scope.isRecording) {
-            // Avoid infinite recursion, as this method can get triggered by the scope
-            lively.graph.update(this)
-        }
-        return snapshot.value
-    }
+    override fun getSnapshot() = snapshot.value
 
     fun set(value: T) {
         if (observe != null) {
