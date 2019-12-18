@@ -1,6 +1,6 @@
 package bitspittle.lively
 
-abstract class Live<T> {
+abstract class Live<T> internal constructor() {
     /**
      * Grab the latest snapshot for this live instance.
      *
