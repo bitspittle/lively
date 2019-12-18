@@ -1,6 +1,6 @@
 package bitspittle.lively
 
-import bitspittle.lively.internal.LiveGraph
+import bitspittle.lively.graph.LiveGraph
 
 /**
  * A scope within which [Live] instances can be queried for their live value.

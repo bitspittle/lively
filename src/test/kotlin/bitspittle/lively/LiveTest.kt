@@ -1,6 +1,6 @@
 package bitspittle.lively
 
-import bitspittle.lively.internal.LiveGraph
+import bitspittle.lively.graph.LiveGraph
 import bitspittle.truthish.assertThat
 import bitspittle.truthish.assertThrows
 import org.junit.Test

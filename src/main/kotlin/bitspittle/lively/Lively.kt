@@ -1,6 +1,6 @@
 package bitspittle.lively
 
-import bitspittle.lively.internal.LiveGraph
+import bitspittle.lively.graph.LiveGraph
 
 class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
     internal val scope = LiveScope(graph)

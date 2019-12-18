@@ -1,4 +1,4 @@
-package bitspittle.lively.internal
+package bitspittle.lively.graph
 
 import bitspittle.truthish.assertThat
 import org.junit.Test
