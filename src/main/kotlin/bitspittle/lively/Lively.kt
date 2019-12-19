@@ -38,10 +38,10 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
     }
 }
 
-fun Lively.createByte() = create(0.toByte())
-fun Lively.createShort() = create(0.toShort())
-fun Lively.createInt() = create(0)
-fun Lively.createLong() = create(0L)
-fun Lively.createFloat() = create(0.0f)
-fun Lively.createDouble() = create(0.0)
-fun Lively.createString() = create("")
+fun Lively.createByte(value: Byte = 0) = create(value)
+fun Lively.createShort(value: Short = 0) = create(value)
+fun Lively.createInt(value: Int = 0) = create(value)
+fun Lively.createLong(value: Long = 0) = create(value)
+fun Lively.createFloat(value: Float = 0f) = create(value)
+fun Lively.createDouble(value: Double = 0.0) = create(value)
+fun Lively.createString(value: String = "") = create(value)
