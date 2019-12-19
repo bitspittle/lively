@@ -1,5 +1,7 @@
 package bitspittle.lively
 
+import bitspittle.lively.event.Event
+
 abstract class Live<T> internal constructor() {
     /**
      * Grab the latest snapshot taken for this live instance.
@@ -56,6 +58,9 @@ class MutableLive<T> private constructor(private val lively: Lively) : Live<T>()
     init {
         lively.graph.add(this)
     }
+
+    val onValueChanged: Event<T>
+        get() = lively.graph.onValueChanged(this)
 
     /**
      * An instance which wraps the last snapshotted value.

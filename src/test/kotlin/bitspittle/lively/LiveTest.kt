@@ -89,4 +89,27 @@ class LiveTest {
         liveInt3.clearObserve()
         liveInt1.observe { liveInt3.get() }
     }
+
+    @Test
+    fun canAddAndRemoveListeners() {
+        val lively = Lively(testGraph)
+
+        val liveStr = lively.create("0")
+        val liveInt = lively.create { liveStr.get().toInt() }
+
+        var strChanged = false
+        var intChanged = false
+        liveStr.onValueChanged += { strChanged = true }
+        liveInt.onValueChanged += { intChanged = true }
+
+        assertThat(strChanged).isFalse()
+        assertThat(intChanged).isFalse()
+
+        liveStr.set("123")
+        assertThat(strChanged).isTrue()
+        assertThat(intChanged).isFalse()
+
+        testGraph.updateAll()
+        assertThat(intChanged).isTrue()
+    }
 }

@@ -1,6 +1,7 @@
 package bitspittle.lively.graph
 
 import bitspittle.lively.Live
+import bitspittle.lively.event.MutableEvent
 
 private val graphThreadLocal = ThreadLocal.withInitial { LiveGraph() }
 
@@ -18,6 +19,7 @@ class LiveGraph {
     }
     private val liveInfo = mutableMapOf<Live<*>, LiveInfo>()
     private val dirtyLives = mutableSetOf<Live<*>>()
+    private val onValueChanged = mutableMapOf<Live<*>, MutableEvent<*>>()
 
     // TODO: Add freeze concept
 
@@ -50,6 +52,10 @@ class LiveGraph {
         }
         // TODO: Ensure no cycles!
     }
+
+    @Suppress("UNCHECKED_CAST") // Live<T> always maps to MutableEvent<T>
+    internal fun <T> onValueChanged(live: Live<T>): MutableEvent<T> =
+        onValueChanged.computeIfAbsent(live) { MutableEvent<T>() } as MutableEvent<T>
 
     internal fun update(live: Live<*>) {
         if (!dirtyLives.contains(live)) {
@@ -95,7 +101,10 @@ class LiveGraph {
         }
     }
 
-    internal fun notifyUpdated(live: Live<*>, valueChanged: Boolean) {
+    /**
+     * This method should only be called by a [Live] *after* it has updated its snapshot.
+     */
+    internal fun <T> notifyUpdated(live: Live<T>, valueChanged: Boolean) {
         dirtyLives.remove(live)
 
         if (valueChanged) {
@@ -109,6 +118,9 @@ class LiveGraph {
                 }
                 ++i
             }
+
+            @Suppress("UNCHECKED_CAST") // Map only pairs Live<T> with LiveListener<T>
+            (onValueChanged[live] as? MutableEvent<T>)?.fire(live.getSnapshot())
         }
     }
 
