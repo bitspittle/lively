@@ -1,6 +1,7 @@
 package bitspittle.lively
 
 import bitspittle.lively.event.Event
+import bitspittle.lively.event.UnitEvent
 
 abstract class Live<T> internal constructor() {
     /**
@@ -30,6 +31,9 @@ abstract class Live<T> internal constructor() {
      * ```
      */
     abstract fun getSnapshot(): T
+
+    abstract val frozen: Boolean
+    abstract fun freeze()
 
     internal abstract fun update()
 
@@ -62,6 +66,9 @@ class MutableLive<T> private constructor(private val lively: Lively) : Live<T>()
     val onValueChanged: Event<T>
         get() = lively.graph.onValueChanged(this)
 
+    val onFroze: UnitEvent
+        get() = lively.graph.onFroze(this)
+
     /**
      * An instance which wraps the last snapshotted value.
      *
@@ -77,9 +84,13 @@ class MutableLive<T> private constructor(private val lively: Lively) : Live<T>()
      */
     private var observe: (LiveScope.() -> T)? = null
 
+    override var frozen = false
+        private set
+
     override fun getSnapshot() = snapshot.value
 
     fun set(value: T) {
+        checkValidStateFor("set")
         if (observe != null) {
             throw IllegalStateException(
                 "Can't set a Live value directly if it previously called `observe`. Call `clearObserve` maybe?")
@@ -87,19 +98,47 @@ class MutableLive<T> private constructor(private val lively: Lively) : Live<T>()
         handleSet(value)
     }
 
+
     fun observe(observe: LiveScope.() -> T) {
+        checkValidStateFor("observe")
         this.observe = observe
         runObserveIfNotNull()
     }
 
     fun clearObserve() {
+        checkValidStateFor("clearObserve")
         if (this.observe != null) {
             this.observe = null
             lively.graph.setDependencies(this, emptyList())
         }
     }
 
+    override fun freeze() {
+        checkValidStateFor("freeze")
+        clearObserve()
+        lively.graph.freeze(this)
+        frozen = true
+    }
+
     override fun update() = runObserveIfNotNull()
+
+    private fun checkValidStateFor(method: String) {
+        if (frozen) {
+            throw IllegalStateException("Attempted to call `$method` on frozen live value: $this")
+        }
+
+        val currentThread = Thread.currentThread()
+        if (currentThread != lively.graph.ownedThread) {
+            throw IllegalStateException(
+                """
+                    Attempting to call `$method` on a live value using a different thread than it was created on.
+
+                    Live value: $this
+                    Created on thread: ${lively.graph.ownedThread}
+                    Modified on thread: $currentThread
+                """.trimIndent())
+        }
+    }
 
     private fun runObserveIfNotNull() {
         observe?.let { observe ->

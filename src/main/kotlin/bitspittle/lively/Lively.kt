@@ -8,7 +8,8 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
     private val ownedLiveValues = mutableSetOf<Live<*>>()
 
     fun freeze() {
-        TODO("Implement freeze, which should lock all live values and clean up the graph")
+        ownedLiveValues.filter { live -> !live.frozen }.forEach { live -> live.freeze() }
+        ownedLiveValues.clear()
     }
 
     /**

@@ -1,7 +1,10 @@
 package bitspittle.lively.graph
 
 import bitspittle.lively.Live
+import bitspittle.lively.event.Event
 import bitspittle.lively.event.MutableEvent
+import bitspittle.lively.event.MutableUnitEvent
+import bitspittle.lively.event.UnitEvent
 
 private val graphThreadLocal = ThreadLocal.withInitial { LiveGraph() }
 
@@ -17,11 +20,14 @@ class LiveGraph {
         var dependencies = mutableSetOf<Live<*>>()
         var dependents = mutableSetOf<Live<*>>()
     }
+
+    internal val ownedThread = Thread.currentThread()
+
     private val liveInfo = mutableMapOf<Live<*>, LiveInfo>()
     private val dirtyLives = mutableSetOf<Live<*>>()
-    private val onValueChanged = mutableMapOf<Live<*>, MutableEvent<*>>()
 
-    // TODO: Add freeze concept
+    private val onValueChanged = mutableMapOf<Live<*>, MutableEvent<*>>()
+    private val onFroze = mutableMapOf<Live<*>, MutableUnitEvent>()
 
     internal fun add(live: Live<*>) {
         if (liveInfo.contains(live)) {
@@ -53,9 +59,20 @@ class LiveGraph {
         // TODO: Ensure no cycles!
     }
 
+    internal fun freeze(live: Live<*>) {
+        onValueChanged.remove(live)
+        onFroze[live]?.fire()
+        onFroze.remove(live)
+
+        // TODO - enqueue request to remove liveInfo and dirtyLives
+    }
+
     @Suppress("UNCHECKED_CAST") // Live<T> always maps to MutableEvent<T>
-    internal fun <T> onValueChanged(live: Live<T>): MutableEvent<T> =
-        onValueChanged.computeIfAbsent(live) { MutableEvent<T>() } as MutableEvent<T>
+    internal fun <T> onValueChanged(live: Live<T>): Event<T> =
+        onValueChanged.computeIfAbsent(live) { MutableEvent<T>() } as Event<T>
+
+    internal fun onFroze(live: Live<*>): UnitEvent =
+        onFroze.computeIfAbsent(live) { MutableUnitEvent() }
 
     internal fun update(live: Live<*>) {
         if (!dirtyLives.contains(live)) {

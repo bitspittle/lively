@@ -94,14 +94,18 @@ class LiveTest {
     fun canAddAndRemoveListeners() {
         val lively = Lively(testGraph)
 
-        val liveStr = lively.create("0")
+        val liveStr = lively.create("987")
         val liveInt = lively.create { liveStr.get().toInt() }
 
         var strChanged = false
         var intChanged = false
         liveStr.onValueChanged += { strChanged = true }
         liveInt.onValueChanged += { intChanged = true }
+        assertThat(strChanged).isFalse()
+        assertThat(intChanged).isFalse()
 
+        liveStr.set("987") // Same values ignored
+        testGraph.updateAll()
         assertThat(strChanged).isFalse()
         assertThat(intChanged).isFalse()
 
@@ -111,5 +115,50 @@ class LiveTest {
 
         testGraph.updateAll()
         assertThat(intChanged).isTrue()
+    }
+
+    @Test
+    fun cannotModifyLiveValueAfterFreezing() {
+        val lively = Lively(testGraph)
+        val liveStr = lively.createString()
+
+        var wasFrozen = false
+        liveStr.onFroze += { wasFrozen = true }
+
+        assertThat(wasFrozen).isFalse()
+        assertThat(liveStr.frozen).isFalse()
+
+        liveStr.freeze()
+
+        assertThat(wasFrozen).isTrue()
+        assertThat(liveStr.frozen).isTrue()
+
+        // Once frozen, a bunch of mutating functions cannot be called
+        assertThrows<IllegalStateException> { liveStr.set("dummy") }
+        assertThrows<IllegalStateException> { liveStr.observe { "dummy" } }
+        assertThrows<IllegalStateException> { liveStr.clearObserve() }
+        assertThrows<IllegalStateException> { liveStr.freeze() }
+
+        // But you can safely query the snapshot
+        assertThat(liveStr.getSnapshot()).isEmpty()
+    }
+
+    @Test
+    fun safeToFreezeAValueBeforeItGetsUpdated() {
+        val lively = Lively(testGraph)
+
+        // A -> B -> C
+        val liveStrC = lively.create("initial value")
+        val liveStrB = lively.create { liveStrC.get() }
+        val liveStrA = lively.create { liveStrB.get() }
+
+        lively.graph.updateAll()
+        assertThat(liveStrA.getSnapshot()).isEqualTo("initial value")
+
+        liveStrC.set("new value")
+        liveStrA.freeze()
+
+        lively.graph.updateAll()
+        assertThat(liveStrA.getSnapshot()).isEqualTo("initial value")
     }
 }
