@@ -2,18 +2,18 @@ package bitspittle.lively
 
 abstract class Live<T> internal constructor() {
     /**
-     * Grab the latest snapshot for this live instance.
+     * Grab the latest snapshot taken for this live instance.
      *
      * Note that the value returned here is *not* live. That is, even if this live instance depends
-     * on another one, the snapshot may be stale. (It will get updated whenever the backing graph
-     * finishes its next update pass).
+     * on another one, the snapshot may be stale. (It will get updated in the future whenever the
+     * backing graph finishes its next update pass).
      *
      * Users of this class often actually want the live value (otherwise, why even using a `Live`
      * in the first place?). Therefore, in most cases, users should access this instance's value
      * via its `get` method, which is only made available inside an `observe` block, e.g. within
      * [Lively.create] and [Lively.observe].
      *
-     * In other words:
+     * To summarize:
      *
      * ```
      * // Set only once...
