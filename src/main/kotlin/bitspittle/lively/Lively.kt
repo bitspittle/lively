@@ -1,6 +1,7 @@
 package bitspittle.lively
 
 import bitspittle.lively.graph.LiveGraph
+import bitspittle.lively.thread.expectCurrent
 
 class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
     internal val scope = LiveScope(graph)
@@ -8,6 +9,8 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
     private val ownedLiveValues = mutableSetOf<Live<*>>()
 
     fun freeze() {
+        checkValidStateFor("freeze")
+
         ownedLiveValues.filter { live -> !live.frozen }.forEach { live -> live.freeze() }
         ownedLiveValues.clear()
     }
@@ -16,6 +19,8 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
      * Create a live instance from a fixed value.
      */
     fun <T> create(initialValue: T): MutableLive<T> {
+        checkValidStateFor("create")
+
         return MutableLive(this, initialValue).also { ownedLiveValues.add(it) }
     }
 
@@ -23,6 +28,8 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
      * Create a live instance that depends on target live instances.
      */
     fun <T> create(block: LiveScope.() -> T): MutableLive<T> {
+        checkValidStateFor("create")
+
         return MutableLive(this, block).also { ownedLiveValues.add(it) }
     }
 
@@ -32,11 +39,20 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
      * one or more of the live values, e.g. setting a UI label based on a name changing, or
      * kicking off some expensive action as the result of a live parameter changing.
      */
-    fun observe(sideEffect: LiveScope.() -> Unit) {
+    fun listen(sideEffect: LiveScope.() -> Unit) {
+        checkValidStateFor("listen")
+
         // Create an internal dummy node that only exists to run a side effect when any of its
         // dependencies change.
         ownedLiveValues.add(MutableLive(this) { sideEffect() })
     }
+
+    private fun checkValidStateFor(method: String) {
+        graph.ownedThread.expectCurrent {
+            "Attempting to call `Lively#$method` using a thread it isn't associated with."
+        }
+    }
+
 }
 
 fun Lively.createByte(value: Byte = 0) = create(value)

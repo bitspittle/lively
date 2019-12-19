@@ -2,7 +2,18 @@ package bitspittle.lively
 
 import bitspittle.lively.event.Event
 import bitspittle.lively.event.UnitEvent
+import bitspittle.lively.thread.expectCurrent
 
+/**
+ * Class which represents a live value (that is, expected to change over time, possibly with other
+ * values depending on it).
+ *
+ * Users do not create instances directly; instead, they should instantiate a [Lively] and use that
+ * as a live factory instead.
+ *
+ * When a live instance is created, it is associated with a thread, and any attempt to access it
+ * off-thread will throw an exception.
+ */
 abstract class Live<T> internal constructor() {
     /**
      * Grab the latest snapshot taken for this live instance.
@@ -14,7 +25,7 @@ abstract class Live<T> internal constructor() {
      * Users of this class often actually want the live value (otherwise, why even using a `Live`
      * in the first place?). Therefore, in most cases, users should access this instance's value
      * via its `get` method, which is only made available inside an `observe` block, e.g. within
-     * [Lively.create] and [Lively.observe].
+     * [Lively.create] and [Lively.listen].
      *
      * To summarize:
      *
@@ -87,10 +98,13 @@ class MutableLive<T> private constructor(private val lively: Lively) : Live<T>()
     override var frozen = false
         private set
 
-    override fun getSnapshot() = snapshot.value
+    override fun getSnapshot(): T {
+        checkValidStateFor("getSnapshot", false)
+        return snapshot.value
+    }
 
     fun set(value: T) {
-        checkValidStateFor("set")
+        checkValidStateFor("set", true)
         if (observe != null) {
             throw IllegalStateException(
                 "Can't set a Live value directly if it previously called `observe`. Call `clearObserve` maybe?")
@@ -100,13 +114,13 @@ class MutableLive<T> private constructor(private val lively: Lively) : Live<T>()
 
 
     fun observe(observe: LiveScope.() -> T) {
-        checkValidStateFor("observe")
+        checkValidStateFor("observe", true)
         this.observe = observe
         runObserveIfNotNull()
     }
 
     fun clearObserve() {
-        checkValidStateFor("clearObserve")
+        checkValidStateFor("clearObserve", true)
         if (this.observe != null) {
             this.observe = null
             lively.graph.setDependencies(this, emptyList())
@@ -114,7 +128,7 @@ class MutableLive<T> private constructor(private val lively: Lively) : Live<T>()
     }
 
     override fun freeze() {
-        checkValidStateFor("freeze")
+        checkValidStateFor("freeze", true)
         clearObserve()
         lively.graph.freeze(this)
         frozen = true
@@ -122,21 +136,13 @@ class MutableLive<T> private constructor(private val lively: Lively) : Live<T>()
 
     override fun update() = runObserveIfNotNull()
 
-    private fun checkValidStateFor(method: String) {
-        if (frozen) {
+    private fun checkValidStateFor(method: String, mutating: Boolean) {
+        if (mutating && frozen) {
             throw IllegalStateException("Attempted to call `$method` on frozen live value: $this")
         }
 
-        val currentThread = Thread.currentThread()
-        if (currentThread != lively.graph.ownedThread) {
-            throw IllegalStateException(
-                """
-                    Attempting to call `$method` on a live value using a different thread than it was created on.
-
-                    Live value: $this
-                    Created on thread: ${lively.graph.ownedThread}
-                    Modified on thread: $currentThread
-                """.trimIndent())
+        lively.graph.ownedThread.expectCurrent {
+            "Attempting to call `$method` on $this using a thread it isn't associated with."
         }
     }
 

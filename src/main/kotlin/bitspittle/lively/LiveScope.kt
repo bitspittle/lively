@@ -12,7 +12,7 @@ class LiveScope internal constructor(private val graph: LiveGraph) {
      * Gets the *live* value of this [Live].
      *
      * This method is only accessible inside a scoped block. See also: [Lively.create] and
-     * [Lively.observe].
+     * [Lively.listen].
      *
      * This not only returns the value of the live instance, but it also updates the backing graph,
      * so that any future changes made to this instance will also notify any dependent live
