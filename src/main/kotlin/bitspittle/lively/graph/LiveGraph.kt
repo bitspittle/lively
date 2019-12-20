@@ -25,6 +25,11 @@ class LiveGraph(private val graphExecutor: Executor) {
 
     internal val ownedThread = Thread.currentThread()
 
+    // Exposed for testing only
+    internal fun isEmpty(): Boolean {
+        return liveInfo.isEmpty() && pendingUpdate.isEmpty() && onValueChanged.isEmpty() && onFroze.isEmpty()
+    }
+
     private val liveInfo = mutableMapOf<Live<*>, LiveInfo>()
     private val pendingUpdate = mutableSetOf<Live<*>>()
 
@@ -49,9 +54,7 @@ class LiveGraph(private val graphExecutor: Executor) {
             throw IllegalArgumentException("Attempting to add a cyclical dependency to: $live")
         }
         liveInfo.getValue(live).apply {
-            dependencies.forEach { dep ->
-                liveInfo.getValue(dep).dependents.remove(live)
-            }
+            dependencies.forEach { dep -> liveInfo.getValue(dep).dependents.remove(live) }
             dependencies.clear()
             dependencies.addAll(deps)
         }
@@ -65,7 +68,7 @@ class LiveGraph(private val graphExecutor: Executor) {
         onFroze[live]?.invoke()
         onFroze.remove(live)
         liveInfo.getValue(live).apply {
-            dependencies.forEach { dep -> liveInfo.getValue(dep).dependents.remove(live) }
+            assert(dependencies.isEmpty()) // Already cleared by Live#freeze, which calls clearObserve
             dependents.forEach { dep -> liveInfo.getValue(dep).dependencies.remove(live) }
         }
         liveInfo.remove(live)

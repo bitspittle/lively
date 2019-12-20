@@ -331,4 +331,32 @@ class LiveTest {
         graphExecutor.runRemaining()
         assertThat(sideEffectInt).isEqualTo(9000)
     }
+
+    @Test
+    fun freezingShouldRemoveNodesFromTheGraph() {
+        val lively = Lively(testGraph)
+
+        val live1 = lively.create(123)
+        val live2 = lively.create(true)
+        val live3 = lively.create { live1.get().toString() + live2.get().toString() }
+        val live4 = lively.create { live3.get().reversed() }
+        val live5 = lively.create { live1.get() + live4.get().length }
+
+        assertThat(testGraph.isEmpty()).isFalse()
+
+        live4.freeze()
+        assertThat(testGraph.isEmpty()).isFalse()
+        live2.freeze()
+        assertThat(testGraph.isEmpty()).isFalse()
+        live3.freeze()
+        assertThat(testGraph.isEmpty()).isFalse()
+        live1.freeze()
+        assertThat(testGraph.isEmpty()).isFalse()
+        live5.freeze()
+        assertThat(testGraph.isEmpty()).isTrue()
+
+        assertThat(live3.getSnapshot()).isEqualTo("123true")
+        assertThat(live4.getSnapshot()).isEqualTo("eurt321")
+        assertThat(live5.getSnapshot()).isEqualTo(130)
+    }
 }
