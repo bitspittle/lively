@@ -1,4 +1,4 @@
-package bitspittle.lively.thread
+package bitspittle.lively.extensions
 
 /**
  * Test that the current thread matches some target (i.e. this) thread.

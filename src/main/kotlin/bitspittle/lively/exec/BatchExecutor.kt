@@ -1,6 +1,6 @@
 package bitspittle.lively.exec
 
-import bitspittle.lively.thread.expectCurrent
+import bitspittle.lively.extensions.expectCurrent
 
 class BatchExecutor(private val delegate: Executor) : Executor {
     private val batch = mutableListOf<() -> Unit>()

@@ -3,7 +3,7 @@ package bitspittle.lively
 import bitspittle.lively.exec.Executor
 import bitspittle.lively.exec.ThrowingExecutor
 import bitspittle.lively.graph.LiveGraph
-import bitspittle.lively.thread.expectCurrent
+import bitspittle.lively.extensions.expectCurrent
 
 class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
     companion object {
@@ -66,11 +66,3 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
 
 }
 
-fun Lively.createBool(value: Boolean = false) = create(value)
-fun Lively.createByte(value: Byte = 0) = create(value)
-fun Lively.createShort(value: Short = 0) = create(value)
-fun Lively.createInt(value: Int = 0) = create(value)
-fun Lively.createLong(value: Long = 0) = create(value)
-fun Lively.createFloat(value: Float = 0f) = create(value)
-fun Lively.createDouble(value: Double = 0.0) = create(value)
-fun Lively.createString(value: String = "") = create(value)

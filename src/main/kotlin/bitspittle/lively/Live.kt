@@ -2,7 +2,7 @@ package bitspittle.lively
 
 import bitspittle.lively.event.Event
 import bitspittle.lively.event.UnitEvent
-import bitspittle.lively.thread.expectCurrent
+import bitspittle.lively.extensions.expectCurrent
 
 /**
  * Class which represents a live value (that is, expected to change over time, possibly with other

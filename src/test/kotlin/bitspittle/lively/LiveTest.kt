@@ -1,6 +1,9 @@
 package bitspittle.lively
 
 import bitspittle.lively.exec.ManualExecutor
+import bitspittle.lively.extensions.createBool
+import bitspittle.lively.extensions.createInt
+import bitspittle.lively.extensions.createString
 import bitspittle.lively.graph.LiveGraph
 import bitspittle.truthish.assertThat
 import bitspittle.truthish.assertThrows
@@ -18,26 +21,6 @@ class LiveTest {
 
         liveInt.set(456)
         assertThat(liveInt.getSnapshot()).isEqualTo(456)
-    }
-
-    @Test
-    fun primitiveCreateMethodsWork() {
-        val lively = Lively(testGraph)
-        val liveByte: Live<Byte> = lively.createByte()
-        val liveShort: Live<Short> = lively.createShort()
-        val liveInt: Live<Int> = lively.createInt()
-        val liveLong: Live<Long> = lively.createLong()
-        val liveFloat: Live<Float> = lively.createFloat()
-        val liveDouble: Live<Double> = lively.createDouble()
-        val liveString: Live<String> = lively.createString()
-
-        assertThat(liveByte.getSnapshot()).isEqualTo(0.toByte())
-        assertThat(liveShort.getSnapshot()).isEqualTo(0.toShort())
-        assertThat(liveInt.getSnapshot()).isEqualTo(0)
-        assertThat(liveLong.getSnapshot()).isEqualTo(0.toLong())
-        assertThat(liveFloat.getSnapshot()).isEqualTo(0.0f)
-        assertThat(liveDouble.getSnapshot()).isEqualTo(0.0)
-        assertThat(liveString.getSnapshot()).isEqualTo("")
     }
 
     @Test
