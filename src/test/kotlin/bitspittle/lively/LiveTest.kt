@@ -6,10 +6,6 @@ import bitspittle.truthish.assertThat
 import bitspittle.truthish.assertThrows
 import org.junit.Test
 
-
-/**
- * TODO: Header comment.
- */
 class LiveTest {
     private val graphExecutor = ManualExecutor()
     private val testGraph = LiveGraph(graphExecutor)
