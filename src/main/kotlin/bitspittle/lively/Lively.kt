@@ -1,9 +1,20 @@
 package bitspittle.lively
 
+import bitspittle.lively.exec.Executor
+import bitspittle.lively.exec.ThrowingExecutor
 import bitspittle.lively.graph.LiveGraph
 import bitspittle.lively.thread.expectCurrent
 
 class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
+    companion object {
+        var executorFactory: () -> Executor = {
+            ThrowingExecutor(
+                """
+                    To use Lively, you must first initialize `Lively.executorFactory` in your codebase.
+                    For example: `Lively.executorFactory = { RunImmediatelyExecutor() }`
+                """.trimIndent())
+        }
+    }
     internal val scope = LiveScope(graph)
 
     private val ownedLives = mutableSetOf<Live<*>>()

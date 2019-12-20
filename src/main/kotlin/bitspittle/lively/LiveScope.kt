@@ -49,7 +49,6 @@ class LiveScope internal constructor(private val graph: LiveGraph) {
      */
     fun <T> Live<T>.get(): T {
         recordedDepsStack.last().add(this)
-        graph.update(this)
         return getSnapshot()
     }
 

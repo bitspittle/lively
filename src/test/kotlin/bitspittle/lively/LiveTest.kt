@@ -1,5 +1,6 @@
 package bitspittle.lively
 
+import bitspittle.lively.exec.ManualExecutor
 import bitspittle.lively.graph.LiveGraph
 import bitspittle.truthish.assertThat
 import bitspittle.truthish.assertThrows
@@ -11,7 +12,8 @@ import java.lang.IllegalArgumentException
  * TODO: Header comment.
  */
 class LiveTest {
-    private val testGraph = LiveGraph()
+    private val graphExecutor = ManualExecutor()
+    private val testGraph = LiveGraph(graphExecutor)
 
     @Test
     fun setAndGetSnapshotWork() {
@@ -50,8 +52,8 @@ class LiveTest {
         val liveStr1 = lively.createString()
         assertThat(liveStr1.getSnapshot()).isEmpty()
 
-        val liveStr2 = lively.create { liveInt.get().toString() }
         liveStr1.observe { liveInt.get().toString() }
+        val liveStr2 = lively.create { liveInt.get().toString() }
 
         assertThat(liveStr1.getSnapshot()).isEqualTo("123")
         assertThat(liveStr2.getSnapshot()).isEqualTo("123")
@@ -60,12 +62,12 @@ class LiveTest {
         assertThat(liveStr1.getSnapshot()).isEqualTo("123")
         assertThat(liveStr2.getSnapshot()).isEqualTo("123")
 
-        lively.graph.update(liveStr1)
+        graphExecutor.runNext() // liveStr1 updated first (because it was created first)
         assertThat(liveStr1.getSnapshot()).isEqualTo("456")
         assertThat(liveStr2.getSnapshot()).isEqualTo("123")
 
         liveInt.set(789)
-        lively.graph.updateAll()
+        graphExecutor.runRemaining()
         assertThat(liveStr1.getSnapshot()).isEqualTo("789")
         assertThat(liveStr2.getSnapshot()).isEqualTo("789")
     }
@@ -104,8 +106,9 @@ class LiveTest {
         assertThat(strChanged).isFalse()
         assertThat(intChanged).isFalse()
 
-        liveStr.set("987") // Same values ignored
-        testGraph.updateAll()
+        liveStr.set("987")
+        // Setting to the same value is totally ignored
+        assertThat(graphExecutor.count).isEqualTo(0)
         assertThat(strChanged).isFalse()
         assertThat(intChanged).isFalse()
 
@@ -113,7 +116,7 @@ class LiveTest {
         assertThat(strChanged).isTrue()
         assertThat(intChanged).isFalse()
 
-        testGraph.updateAll()
+        graphExecutor.runRemaining()
         assertThat(intChanged).isTrue()
     }
 
@@ -152,13 +155,12 @@ class LiveTest {
         val liveStrB = lively.create { liveStrC.get() }
         val liveStrA = lively.create { liveStrB.get() }
 
-        lively.graph.updateAll()
         assertThat(liveStrA.getSnapshot()).isEqualTo("initial value")
 
         liveStrC.set("new value")
         liveStrA.freeze()
 
-        lively.graph.updateAll()
+        graphExecutor.runRemaining()
         assertThat(liveStrA.getSnapshot()).isEqualTo("initial value")
     }
 }

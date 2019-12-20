@@ -1,14 +1,16 @@
 package bitspittle.lively.graph
 
 import bitspittle.lively.Live
+import bitspittle.lively.Lively
 import bitspittle.lively.event.Event
 import bitspittle.lively.event.MutableEvent
 import bitspittle.lively.event.MutableUnitEvent
 import bitspittle.lively.event.UnitEvent
+import bitspittle.lively.exec.Executor
 
-private val graphThreadLocal = ThreadLocal.withInitial { LiveGraph() }
+private val graphThreadLocal = ThreadLocal.withInitial { LiveGraph(Lively.executorFactory()) }
 
-class LiveGraph {
+class LiveGraph(private val graphExecutor: Executor) {
     companion object {
         val instance: LiveGraph
             get() = graphThreadLocal.get()
@@ -74,50 +76,6 @@ class LiveGraph {
     internal fun onFroze(live: Live<*>): UnitEvent =
         onFroze.computeIfAbsent(live) { MutableUnitEvent() }
 
-    internal fun update(live: Live<*>) {
-        if (!dirtyLives.contains(live)) {
-            return
-        }
-
-        val dirtyDependencies = mutableListOf(live)
-        var i = 0
-        while (i < dirtyDependencies.size) {
-            val currLive = dirtyDependencies[i]
-            val dirtyDeps = liveInfo.getValue(currLive).dependencies.filter { dep -> dirtyLives.contains(dep) }
-            dirtyDependencies.addAll(dirtyDeps)
-            ++i
-        }
-
-        // Insert live values to update in reverse order, meaning we update from source nodes first
-        // to destination nodes last
-        val livesToUpdate = LinkedHashSet<Live<*>>()
-        while (i > 0) {
-            i--
-            livesToUpdate.add(dirtyDependencies[i])
-        }
-
-        for (liveToUpdate in livesToUpdate) {
-            liveToUpdate.update()
-            dirtyLives.remove(liveToUpdate)
-        }
-    }
-
-    /**
-     * Update all dirty nodes.
-     *
-     * This operation may create new dirty nodes as an intermediate step, but even those will be
-     * updated.
-     */
-    internal fun updateAll() {
-        var i = 0
-        val dirtyLives = this.dirtyLives.toList()
-        this.dirtyLives.clear()
-        while (i < dirtyLives.size) {
-            dirtyLives[i].update()
-            ++i
-        }
-    }
-
     /**
      * This method should only be called by a [Live] *after* it has updated its snapshot.
      */
@@ -138,6 +96,13 @@ class LiveGraph {
 
             @Suppress("UNCHECKED_CAST") // Map only pairs Live<T> with LiveListener<T>
             (onValueChanged[live] as? MutableEvent<T>)?.invoke(live.getSnapshot())
+
+            affectedLives.forEach {
+                affectedLive -> graphExecutor.submit {
+                    affectedLive.update()
+                    dirtyLives.remove(affectedLive)
+                }
+            }
         }
     }
 
