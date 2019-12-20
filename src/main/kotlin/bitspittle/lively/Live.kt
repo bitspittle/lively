@@ -130,8 +130,8 @@ class MutableLive<T> private constructor(private val lively: Lively) : Live<T>()
     override fun freeze() {
         checkValidStateFor("freeze", true)
         clearObserve()
-        lively.graph.freeze(this)
         frozen = true
+        lively.graph.freeze(this)
     }
 
     override fun update() = runObserveIfNotNull()
