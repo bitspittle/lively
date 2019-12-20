@@ -16,50 +16,78 @@ class LiveGraph(private val graphExecutor: Executor) {
             get() = graphThreadLocal.get()
     }
 
-    private class LiveInfo {
-        // TODO: Optimize this by only allocating sets on demand. Excessive allocation is fine
-        //  to get things up and running though.
-        var dependencies = mutableSetOf<Live<*>>()
-        var dependents = mutableSetOf<Live<*>>()
-    }
-
     internal val ownedThread = Thread.currentThread()
 
     // Exposed for testing only
     internal fun isEmpty(): Boolean {
-        return liveInfo.isEmpty() && pendingUpdate.isEmpty() && onValueChanged.isEmpty() && onFroze.isEmpty()
+        return lives.isEmpty()
+                && dependencies.isEmpty()
+                && dependents.isEmpty()
+                && pendingUpdate.isEmpty()
+                && onValueChanged.isEmpty()
+                && onFroze.isEmpty()
     }
 
-    private val liveInfo = mutableMapOf<Live<*>, LiveInfo>()
+    private val lives = mutableSetOf<Live<*>>()
+    private val dependencies = mutableMapOf<Live<*>, MutableList<Live<*>>>()
+    private val dependents = mutableMapOf<Live<*>, MutableList<Live<*>>>()
     private val pendingUpdate = mutableSetOf<Live<*>>()
 
     private val onValueChanged = mutableMapOf<Live<*>, MutableEvent<*>>()
     private val onFroze = mutableMapOf<Live<*>, MutableUnitEvent>()
 
     internal fun add(live: Live<*>) {
-        if (liveInfo.contains(live)) {
+        if (lives.contains(live)) {
             throw IllegalArgumentException("Duplicate live value added to graph: $live")
         }
-        liveInfo[live] = LiveInfo()
+        lives.add(live)
     }
 
     internal fun setDependencies(live: Live<*>, deps: Collection<Live<*>>) {
-        if (!liveInfo.contains(live)) {
+        if (!lives.contains(live)) {
             throw IllegalArgumentException("Graph cannot add dependencies for unknown live value: $live")
         }
-        if (deps.any { !liveInfo.contains(it) }) {
-            throw IllegalArgumentException("Graph cannot add unknown live value as dependency: $live")
+
+        if (deps.isEmpty()) {
+            if (!dependencies.contains(live)) {
+                return // No-op
+            }
         }
-        if (deps.any { it.dependsOn(live) }) {
-            throw IllegalArgumentException("Attempting to add a cyclical dependency to: $live")
+        else {
+            if (deps.any { !lives.contains(it) }) {
+                throw IllegalArgumentException("Graph cannot add unknown live value as dependency: $live")
+            }
+            if (deps.any { it.dependsOn(live) }) {
+                throw IllegalArgumentException("Attempting to add a cyclical dependency to: $live")
+            }
+            val oldDeps = dependencies[live]
+            if (oldDeps != null && oldDeps.containsAll(deps) && deps.containsAll(oldDeps)) {
+                return // No-op
+            }
         }
-        liveInfo.getValue(live).apply {
-            dependencies.forEach { dep -> liveInfo.getValue(dep).dependents.remove(live) }
-            dependencies.clear()
-            dependencies.addAll(deps)
+
+
+        dependencies.getOrPut(live) { mutableListOf() }.apply {
+            forEach { oldDep ->
+                dependents.getValue(oldDep).apply {
+                    remove(live)
+                    if (this.isEmpty()) {
+                        dependents.remove(oldDep)
+                    }
+                }
+            }
+            clear()
+
+            if (deps.isNotEmpty()) {
+                addAll(deps)
+            }
+            else {
+                dependencies.remove(live)
+            }
         }
+
         deps.forEach { dep ->
-            liveInfo.getValue(dep).dependents.add(live)
+            dependents.getOrPut(dep) { mutableListOf() }.add(live)
         }
     }
 
@@ -67,11 +95,18 @@ class LiveGraph(private val graphExecutor: Executor) {
         onValueChanged.remove(live)
         onFroze[live]?.invoke()
         onFroze.remove(live)
-        liveInfo.getValue(live).apply {
-            assert(dependencies.isEmpty()) // Already cleared by Live#freeze, which calls clearObserve
-            dependents.forEach { dep -> liveInfo.getValue(dep).dependencies.remove(live) }
+        // If we ever had dependencies, they were already cleared by Live#freeze, which calls clearObserve
+        dependents[live]?.forEach { dep ->
+            dependencies.getValue(dep).apply {
+                remove(live)
+                if (isEmpty()) {
+                    dependencies.remove(dep)
+                }
+            }
         }
-        liveInfo.remove(live)
+        dependencies.remove(live)
+        dependents.remove(live)
+        lives.remove(live)
         pendingUpdate.remove(live)
     }
 
@@ -92,7 +127,8 @@ class LiveGraph(private val graphExecutor: Executor) {
             @Suppress("UNCHECKED_CAST") // Map only pairs Live<T> with LiveListener<T>
             (onValueChanged[live] as? MutableEvent<T>)?.invoke(live.getSnapshot())
 
-            liveInfo.getValue(live).dependents.toMutableList().forEach { dependent ->
+            // To avoid re-entry issues, duplicate the collection before iterating over it
+            dependents[live]?.toMutableList()?.forEach { dependent ->
                 if (pendingUpdate.add(dependent)) {
                     graphExecutor.submit {
                         dependent.update()
@@ -105,13 +141,13 @@ class LiveGraph(private val graphExecutor: Executor) {
 
     private fun Live<*>.dependsOn(other: Live<*>): Boolean {
         val allDependencies = mutableListOf<Live<*>>()
-        allDependencies.addAll(liveInfo.getValue(this).dependencies)
+        dependencies[this]?.let { deps -> allDependencies.addAll(deps) }
 
         var i = 0
         while (i < allDependencies.size) {
             val currDep = allDependencies[i]
             if (currDep === other) return true
-            allDependencies.addAll(liveInfo.getValue(currDep).dependencies)
+            dependencies[currDep]?.let { deps -> allDependencies.addAll(deps) }
             i++
         }
 
