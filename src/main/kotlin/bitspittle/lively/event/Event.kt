@@ -28,7 +28,7 @@ class MutableEvent<P>: Event<P> {
         listeners.remove(listener)
     }
 
-    fun fire(params: P) {
+    operator fun invoke(params: P) {
         listeners.forEach { listener -> listener(params) }
     }
 
@@ -48,7 +48,7 @@ class MutableUnitEvent: UnitEvent {
         listeners.remove(listener)
     }
 
-    fun fire() {
+    operator fun invoke() {
         listeners.forEach { listener -> listener() }
     }
 

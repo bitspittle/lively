@@ -61,7 +61,7 @@ class LiveGraph {
 
     internal fun freeze(live: Live<*>) {
         onValueChanged.remove(live)
-        onFroze[live]?.fire()
+        onFroze[live]?.invoke()
         onFroze.remove(live)
 
         // TODO - enqueue request to remove liveInfo and dirtyLives
@@ -137,7 +137,7 @@ class LiveGraph {
             }
 
             @Suppress("UNCHECKED_CAST") // Map only pairs Live<T> with LiveListener<T>
-            (onValueChanged[live] as? MutableEvent<T>)?.fire(live.getSnapshot())
+            (onValueChanged[live] as? MutableEvent<T>)?.invoke(live.getSnapshot())
         }
     }
 

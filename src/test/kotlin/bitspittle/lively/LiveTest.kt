@@ -91,7 +91,7 @@ class LiveTest {
     }
 
     @Test
-    fun canAddAndRemoveListeners() {
+    fun onValueChangedListenersWorkAsExpected() {
         val lively = Lively(testGraph)
 
         val liveStr = lively.create("987")
