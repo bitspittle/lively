@@ -8,6 +8,9 @@ import bitspittle.lively.graph.LiveGraph
 class LiveScope internal constructor(private val graph: LiveGraph) {
     private val recordedDepsStack = mutableListOf<MutableSet<Live<*>>>()
 
+    val isRecording
+        get() = recordedDepsStack.isNotEmpty()
+
     /**
      * Gets the *live* value of this [Live].
      *

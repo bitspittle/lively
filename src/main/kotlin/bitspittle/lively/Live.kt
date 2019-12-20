@@ -144,6 +144,10 @@ class MutableLive<T> private constructor(private val lively: Lively) : Live<T>()
         lively.graph.ownedThread.expectCurrent {
             "Attempting to call `$method` on $this using a thread it isn't associated with."
         }
+
+        if (mutating && lively.scope.isRecording) {
+            throw IllegalStateException("Attempted to call `$method` inside an observe block on: $this")
+        }
     }
 
     private fun runObserveIfNotNull() {
