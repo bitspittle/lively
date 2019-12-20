@@ -5,7 +5,6 @@ import bitspittle.lively.graph.LiveGraph
 import bitspittle.truthish.assertThat
 import bitspittle.truthish.assertThrows
 import org.junit.Test
-import java.lang.IllegalArgumentException
 
 
 /**
@@ -264,7 +263,6 @@ class LiveTest {
         assertThat(count).isEqualTo(1)
         assertThat(sum.getSnapshot()).isEqualTo(111)
     }
-
 
     @Test
     fun liveCanWrapOtherValueTypes() {
