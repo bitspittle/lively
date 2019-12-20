@@ -314,4 +314,21 @@ class LiveTest {
         liveLabel.freeze()
         assertThat(sourceLabel.listeners.isEmpty())
     }
+
+    @Test
+    fun canCreateSideEffectsViaLivelyListen() {
+        val lively = Lively(testGraph)
+        val liveInt = lively.create(123)
+
+        var sideEffectInt = 0
+        lively.listen {
+            sideEffectInt = liveInt.get()
+        }
+
+        assertThat(sideEffectInt).isEqualTo(123)
+
+        liveInt.set(9000)
+        graphExecutor.runRemaining()
+        assertThat(sideEffectInt).isEqualTo(9000)
+    }
 }
