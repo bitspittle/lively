@@ -73,11 +73,8 @@ class ManualExecutor : Executor {
     fun runRemaining() {
         checkNonEmpty()
 
-        try {
-            enqueued.forEach { runnable -> runnable() }
-        }
-        finally {
-            enqueued.clear()
+        while (enqueued.isNotEmpty()) {
+            runNext()
         }
     }
 

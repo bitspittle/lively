@@ -66,6 +66,7 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
 
 }
 
+fun Lively.createBool(value: Boolean = false) = create(value)
 fun Lively.createByte(value: Byte = 0) = create(value)
 fun Lively.createShort(value: Short = 0) = create(value)
 fun Lively.createInt(value: Int = 0) = create(value)

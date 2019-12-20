@@ -121,6 +121,35 @@ class LiveTest {
     }
 
     @Test
+    fun dependenciesCanChange() {
+        val lively = Lively(testGraph)
+
+        val switch = lively.createBool()
+        val intTrue = lively.createInt(1)
+        val intFalse = lively.createInt(0)
+
+        val finalInt = lively.create {
+            if (switch.get()) intTrue.get() else intFalse.get()
+        }
+
+        assertThat(finalInt.getSnapshot()).isEqualTo(0)
+
+        switch.set(true)
+        graphExecutor.runRemaining()
+
+        assertThat(finalInt.getSnapshot()).isEqualTo(1)
+
+        // At this point, nothing should depend on `intFalse`
+        intFalse.set(-1)
+        assertThat(graphExecutor.count).isEqualTo(0)
+        assertThat(finalInt.getSnapshot()).isEqualTo(1)
+
+        switch.set(false)
+        graphExecutor.runRemaining()
+        assertThat(finalInt.getSnapshot()).isEqualTo(-1)
+    }
+
+    @Test
     fun cannotModifyLiveValueAfterFreezing() {
         val lively = Lively(testGraph)
         val liveStr = lively.createString()
@@ -162,5 +191,109 @@ class LiveTest {
 
         graphExecutor.runRemaining()
         assertThat(liveStrA.getSnapshot()).isEqualTo("initial value")
+    }
+
+    @Test
+    fun updateOnlyPropogatesIfValueChanged() {
+        val lively = Lively(testGraph)
+
+        val switch = lively.create(false)
+
+        val dummyInt1 = lively.create(10)
+        val dummyInt2 = lively.create(10)
+        val middleInt = lively.create { if (switch.get()) dummyInt1.get() else dummyInt2.get() }
+        val finalInt = lively.create { middleInt.get() }
+
+        assertThat(finalInt.getSnapshot()).isEqualTo(10)
+
+        var middleIntChanged = false
+        var finalIntChanged = false
+        middleInt.onValueChanged += { middleIntChanged = true }
+        finalInt.onValueChanged += { finalIntChanged = true }
+
+        switch.set(true)
+        graphExecutor.runRemaining()
+        assertThat(middleIntChanged).isFalse()
+        assertThat(finalIntChanged).isFalse()
+
+        // Sanity check that deps propagate later
+        dummyInt1.set(100)
+        graphExecutor.runRemaining()
+        assertThat(middleIntChanged).isTrue()
+        assertThat(finalIntChanged).isTrue()
+    }
+
+    @Test
+    fun verifyIntermediateValuesAreOnlyUpdatedOnce() {
+        val lively = Lively(testGraph)
+
+        val int1 = lively.create(1)
+        val int2 = lively.create(2)
+        val int3 = lively.create(3)
+        val sum = lively.create { int1.get() + int2.get() + int3.get() }
+
+        var count = 0
+        sum.onValueChanged += { ++count }
+
+        assertThat(count).isEqualTo(0)
+        assertThat(sum.getSnapshot()).isEqualTo(6)
+
+        int1.set(100)
+        int2.set(10)
+        int3.set(1)
+
+        graphExecutor.runRemaining()
+        assertThat(count).isEqualTo(1)
+        assertThat(sum.getSnapshot()).isEqualTo(111)
+    }
+
+
+    @Test
+    fun liveCanWrapOtherValueTypes() {
+        val lively = Lively(testGraph)
+
+        // A UI label class looks something like this...
+        class FakeLabel {
+            val listeners = mutableListOf<(FakeLabel) -> Unit>()
+            var text: String = ""
+                set(value) {
+                    if (value != field) {
+                        field = value
+                        listeners.forEach { it(this) }
+                    }
+                }
+        }
+
+        fun wrapLabel(label: FakeLabel): MutableLive<String> {
+            val liveLabel = lively.create(label.text)
+            val listener: (FakeLabel) -> Unit = { sender -> liveLabel.set(sender.text) }
+            label.listeners.add(listener)
+            liveLabel.onValueChanged += { text -> label.text = text }
+            liveLabel.onFroze += { label.listeners.remove(listener) }
+
+            return liveLabel
+        }
+
+        val sourceLabel = FakeLabel()
+        sourceLabel.text = "Initial text"
+
+        val liveLabel = wrapLabel(sourceLabel)
+        assertThat(sourceLabel.listeners.size).isEqualTo(1)
+        val allCaps = lively.create { liveLabel.get().toUpperCase() }
+        assertThat(liveLabel.getSnapshot()).isEqualTo("Initial text")
+        assertThat(allCaps.getSnapshot()).isEqualTo("INITIAL TEXT")
+
+        sourceLabel.text = "New text"
+        graphExecutor.runRemaining()
+        assertThat(liveLabel.getSnapshot()).isEqualTo("New text")
+        assertThat(allCaps.getSnapshot()).isEqualTo("NEW TEXT")
+
+        liveLabel.set("Updated text")
+        graphExecutor.runRemaining()
+        assertThat(sourceLabel.text).isEqualTo("Updated text")
+        assertThat(allCaps.getSnapshot()).isEqualTo("UPDATED TEXT")
+
+        liveLabel.freeze()
+        assertThat(sourceLabel.listeners.isEmpty())
     }
 }
