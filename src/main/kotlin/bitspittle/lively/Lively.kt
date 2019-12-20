@@ -6,13 +6,13 @@ import bitspittle.lively.thread.expectCurrent
 class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
     internal val scope = LiveScope(graph)
 
-    private val ownedLiveValues = mutableSetOf<Live<*>>()
+    private val ownedLives = mutableSetOf<Live<*>>()
 
     fun freeze() {
         checkValidStateFor("freeze")
 
-        ownedLiveValues.filter { live -> !live.frozen }.forEach { live -> live.freeze() }
-        ownedLiveValues.clear()
+        ownedLives.filter { live -> !live.frozen }.forEach { live -> live.freeze() }
+        ownedLives.clear()
     }
 
     /**
@@ -21,7 +21,7 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
     fun <T> create(initialValue: T): MutableLive<T> {
         checkValidStateFor("create")
 
-        return MutableLive(this, initialValue).also { ownedLiveValues.add(it) }
+        return MutableLive(this, initialValue).also { ownedLives.add(it) }
     }
 
     /**
@@ -30,7 +30,7 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
     fun <T> create(block: LiveScope.() -> T): MutableLive<T> {
         checkValidStateFor("create")
 
-        return MutableLive(this, block).also { ownedLiveValues.add(it) }
+        return MutableLive(this, block).also { ownedLives.add(it) }
     }
 
     /**
@@ -44,7 +44,7 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
 
         // Create an internal dummy node that only exists to run a side effect when any of its
         // dependencies change.
-        ownedLiveValues.add(MutableLive(this) { sideEffect() })
+        ownedLives.add(MutableLive(this) { sideEffect() })
     }
 
     private fun checkValidStateFor(method: String) {
