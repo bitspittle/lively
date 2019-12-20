@@ -26,7 +26,7 @@ class LiveGraph(private val graphExecutor: Executor) {
     internal val ownedThread = Thread.currentThread()
 
     private val liveInfo = mutableMapOf<Live<*>, LiveInfo>()
-    private val dirtyLives = mutableSetOf<Live<*>>()
+    private val pendingUpdate = mutableSetOf<Live<*>>()
 
     private val onValueChanged = mutableMapOf<Live<*>, MutableEvent<*>>()
     private val onFroze = mutableMapOf<Live<*>, MutableUnitEvent>()
@@ -80,27 +80,18 @@ class LiveGraph(private val graphExecutor: Executor) {
      * This method should only be called by a [Live] *after* it has updated its snapshot.
      */
     internal fun <T> notifyUpdated(live: Live<T>, valueChanged: Boolean) {
-        dirtyLives.remove(live)
+        pendingUpdate.remove(live)
 
         if (valueChanged) {
-            val affectedLives = liveInfo.getValue(live).dependents.toMutableList()
-
-            var i = 0
-            while (i < affectedLives.size) {
-                val affectedLive = affectedLives[i]
-                if (dirtyLives.add(affectedLive)) {
-                    affectedLives.addAll(liveInfo.getValue(affectedLive).dependents)
-                }
-                ++i
-            }
-
             @Suppress("UNCHECKED_CAST") // Map only pairs Live<T> with LiveListener<T>
             (onValueChanged[live] as? MutableEvent<T>)?.invoke(live.getSnapshot())
 
-            affectedLives.forEach {
-                affectedLive -> graphExecutor.submit {
-                    affectedLive.update()
-                    dirtyLives.remove(affectedLive)
+            liveInfo.getValue(live).dependents.toMutableList().forEach { dependent ->
+                if (pendingUpdate.add(dependent)) {
+                    graphExecutor.submit {
+                        dependent.update()
+                        pendingUpdate.remove(dependent)
+                    }
                 }
             }
         }
