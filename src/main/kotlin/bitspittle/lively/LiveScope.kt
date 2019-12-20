@@ -48,7 +48,9 @@ class LiveScope internal constructor(private val graph: LiveGraph) {
      * `showNickname` and `nickname`, if `nickname` is true.
      */
     fun <T> Live<T>.get(): T {
-        recordedDepsStack.last().add(this)
+        if (!this.frozen) {
+            recordedDepsStack.last().add(this)
+        }
         return getSnapshot()
     }
 

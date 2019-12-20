@@ -194,6 +194,24 @@ class LiveTest {
     }
 
     @Test
+    fun observeBlockCanReferenceFrozenLiveValues() {
+        val lively = Lively(testGraph)
+
+        val toFreezeNow = lively.create(1).apply { freeze() }
+        val toFreezeLater = lively.create(2)
+        val neverFrozen = lively.create(3)
+
+        val sum = lively.create { toFreezeNow.get() + toFreezeLater.get() + neverFrozen.get() }
+        assertThat(sum.getSnapshot()).isEqualTo(6)
+
+        toFreezeLater.freeze()
+        neverFrozen.set(30)
+
+        graphExecutor.runRemaining()
+        assertThat(sum.getSnapshot()).isEqualTo(33)
+    }
+
+    @Test
     fun updateOnlyPropogatesIfValueChanged() {
         val lively = Lively(testGraph)
 

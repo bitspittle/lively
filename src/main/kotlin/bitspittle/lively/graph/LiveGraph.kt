@@ -58,15 +58,18 @@ class LiveGraph(private val graphExecutor: Executor) {
         deps.forEach { dep ->
             liveInfo.getValue(dep).dependents.add(live)
         }
-        // TODO: Ensure no cycles!
     }
 
     internal fun freeze(live: Live<*>) {
         onValueChanged.remove(live)
         onFroze[live]?.invoke()
         onFroze.remove(live)
-
-        // TODO - enqueue request to remove liveInfo and dirtyLives
+        liveInfo.getValue(live).apply {
+            dependencies.forEach { dep -> liveInfo.getValue(dep).dependents.remove(live) }
+            dependents.forEach { dep -> liveInfo.getValue(dep).dependencies.remove(live) }
+        }
+        liveInfo.remove(live)
+        pendingUpdate.remove(live)
     }
 
     @Suppress("UNCHECKED_CAST") // Live<T> always maps to MutableEvent<T>
