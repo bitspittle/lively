@@ -283,13 +283,20 @@ class LiveTest {
             convert1to2: (T1) -> T2?,
             convert2to1: (T2) -> T1?
         ) {
-            val valueListener1: (T1) -> Unit = { value1 -> convert1to2(value1)?.let { live2.set(it) } }
-            val valueListener2: (T2) -> Unit = { value2 -> convert2to1(value2)?.let { live1.set(it) } }
-            live1.onValueChanged += valueListener1
-            live2.onValueChanged += valueListener2
-
-            live1.onFroze += { live2.onValueChanged -= valueListener2 }
-            live2.onFroze += { live1.onValueChanged -= valueListener1 }
+            live1.onValueChanged += { value1 ->
+                if (live2.frozen) {
+                    removeThisListener()
+                } else {
+                    convert1to2(value1)?.let { live2.set(it) }
+                }
+            }
+            live2.onValueChanged += { value2 ->
+                if (live1.frozen) {
+                    removeThisListener()
+                } else {
+                    convert2to1(value2)?.let { live1.set(it) }
+                }
+            }
             convert2to1(live2.getSnapshot())?.let { live1.set(it) }
         }
 

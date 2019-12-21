@@ -93,9 +93,11 @@ class LiveGraph(private val graphExecutor: Executor) {
     }
 
     internal fun freeze(live: Live<*>) {
-        onValueChanged.remove(live)
-        onFroze[live]?.invoke()
-        onFroze.remove(live)
+        onValueChanged.remove(live)?.clear()
+        onFroze.remove(live)?.apply {
+            invoke()
+            clear()
+        }
         // If we ever had dependencies, they were already cleared by Live#freeze, which calls clearObserve
         dependents[live]?.forEach { dep ->
             dependencies.getValue(dep).apply {
