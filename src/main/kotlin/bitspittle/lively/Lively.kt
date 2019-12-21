@@ -17,7 +17,7 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
     }
     internal val scope = LiveScope(graph)
 
-    private val ownedLives = mutableSetOf<Live<*>>()
+    private val ownedLives = mutableSetOf<MutableLive<*>>()
 
     fun freeze() {
         checkValidStateFor("freeze")
