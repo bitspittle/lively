@@ -21,6 +21,7 @@ class LivelyTest {
         val liveFloat: Live<Float> = lively.createFloat()
         val liveDouble: Live<Double> = lively.createDouble()
         val liveString: Live<String> = lively.createString()
+        val liveNullInt: Live<Int?> = lively.createNullable()
 
         assertThat(liveBool.getSnapshot()).isFalse()
         assertThat(liveByte.getSnapshot()).isEqualTo(0.toByte())
@@ -30,6 +31,7 @@ class LivelyTest {
         assertThat(liveFloat.getSnapshot()).isEqualTo(0.0f)
         assertThat(liveDouble.getSnapshot()).isEqualTo(0.0)
         assertThat(liveString.getSnapshot()).isEqualTo("")
+        assertThat(liveNullInt.getSnapshot()).isNull()
     }
 
 }
