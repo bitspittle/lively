@@ -1,6 +1,8 @@
 package bitspittle.lively
 
 import bitspittle.lively.event.Event
+import bitspittle.lively.event.StubEvent
+import bitspittle.lively.event.StubUnitEvent
 import bitspittle.lively.event.UnitEvent
 import bitspittle.lively.extensions.expectCurrent
 
@@ -101,12 +103,18 @@ class SettableLive<T> private constructor(private val lively: Lively) : MutableL
 
     override val onValueChanged: Event<T>
         get() {
+            if (frozen) {
+                return StubEvent.typed()
+            }
             checkValidStateFor("onValueChanged", true)
             return lively.graph.onValueChanged(this)
         }
 
     override val onFroze: UnitEvent
         get() {
+            if (frozen) {
+                return StubUnitEvent
+            }
             checkValidStateFor("onFroze", true)
             return lively.graph.onFroze(this)
         }

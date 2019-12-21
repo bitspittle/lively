@@ -127,12 +127,14 @@ class LiveTest {
 
         // Once frozen, many mutating functions cannot be called
         assertThrows<IllegalStateException> { liveStr.set("dummy") }
-        assertThrows<IllegalStateException> { liveStr.onValueChanged += {} }
-        assertThrows<IllegalStateException> { liveStr.onFroze += {} }
         assertThrows<IllegalStateException> { liveStr.freeze() }
 
         // But you can safely query the snapshot
         assertThat(liveStr.getSnapshot()).isEqualTo("initial")
+
+        // You can add listeners to a frozen value, but it's a no-op
+        liveStr.onValueChanged += {}
+        liveStr.onFroze += {}
     }
 
     @Test

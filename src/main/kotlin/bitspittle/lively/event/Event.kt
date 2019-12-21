@@ -91,3 +91,29 @@ class MutableUnitEvent: UnitEvent {
 
     private val listeners = mutableListOf<UnitEventListener>()
 }
+
+/**
+ * Stub events are useful to return when an object gets into a state where it no longer accepts
+ * events.
+ */
+object StubEvent : Event<Any> {
+    override fun plusAssign(listener: EventListener<Any>) {}
+    override fun minusAssign(listener: EventListener<Any>) {}
+
+    /**
+     * Convenience function for safely casting the [StubEvent] object into a typed [Event].
+     */
+    fun <T> typed(): Event<T> {
+        @Suppress("UNCHECKED_CAST")
+        return this as Event<T>
+    }
+}
+
+/**
+ * Stub events are useful to return when an object gets into a state where it no longer accepts
+ * events.
+ */
+object StubUnitEvent : UnitEvent {
+    override fun plusAssign(listener: UnitEventListener) {}
+    override fun minusAssign(listener: UnitEventListener) {}
+}
