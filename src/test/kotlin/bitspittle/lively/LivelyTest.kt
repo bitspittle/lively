@@ -1,8 +1,14 @@
 package bitspittle.lively
 
+import bitspittle.lively.exec.RunImmediatelyExecutor
+import bitspittle.lively.extensions.createDouble
+import bitspittle.lively.extensions.createInt
+import bitspittle.lively.extensions.createString
+import bitspittle.lively.graph.LiveGraph
 import bitspittle.truthish.assertThat
 import bitspittle.truthish.assertThrows
 import org.junit.Test
+import java.lang.IllegalArgumentException
 import java.util.concurrent.CountDownLatch
 
 class LivelyTest {
@@ -54,4 +60,50 @@ class LivelyTest {
         threads.forEach { it.join() }
     }
 
+    @Test
+    fun livelyInstancesOnTheSameThreadHaveTheSameBackingGraph() {
+        val lively1 = Lively()
+        val lively2 = Lively()
+        assertThat(lively1.graph).isSameAs(lively2.graph)
+
+    }
+
+    @Test
+    fun multipleLivelyInstancesAreBackedByTheSameGraph() {
+        val testGraph = LiveGraph(RunImmediatelyExecutor())
+        val lively1 = Lively(testGraph)
+        val lively2 = Lively(testGraph)
+        val lively3 = Lively(testGraph)
+
+        val int1 = lively1.createInt(123)
+        val dbl2 = lively2.create { int1.get().toDouble() / 10.0 }
+        val str3 = lively3.create { dbl2.get().toString() }
+
+        assertThat(str3.getSnapshot()).isEqualTo("12.3")
+
+        assertThat(testGraph.isEmpty()).isFalse()
+        lively2.freeze() // Severs connection between str3 and int1
+
+        int1.set(9000)
+        assertThat(str3.getSnapshot()).isEqualTo("12.3")
+        assertThat(testGraph.isEmpty()).isFalse()
+
+        lively1.freeze()
+        assertThat(testGraph.isEmpty()).isFalse()
+
+        lively3.freeze()
+        assertThat(testGraph.isEmpty()).isTrue()
+    }
+
+    @Test
+    fun livelyInstancesWithDifferentGraphsCannotInteract() {
+        val testGraph1 = LiveGraph(RunImmediatelyExecutor())
+        val testGraph2 = LiveGraph(RunImmediatelyExecutor())
+        val lively1 = Lively(testGraph1)
+        val lively2 = Lively(testGraph2)
+
+        val int1 = lively1.createInt()
+
+        assertThrows<IllegalArgumentException> { lively2.create { int1.get() } }
+    }
 }
