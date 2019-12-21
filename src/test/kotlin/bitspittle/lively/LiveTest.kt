@@ -1,6 +1,7 @@
 package bitspittle.lively
 
 import bitspittle.lively.exec.ManualExecutor
+import bitspittle.lively.exec.RunImmediatelyExecutor
 import bitspittle.lively.extensions.createBool
 import bitspittle.lively.extensions.createInt
 import bitspittle.lively.extensions.createString
@@ -271,6 +272,59 @@ class LiveTest {
 
         liveLabel.freeze()
         assertThat(sourceLabel.listeners.isEmpty())
+    }
+
+    @Test
+    fun twoLivesCanBeTwoWayBoundViaListeners() {
+        // TODO: Actually move an API like this into Lively?
+        fun <T1, T2> bind(
+            live1: SettableLive<T1>,
+            live2: SettableLive<T2>,
+            convert1to2: (T1) -> T2?,
+            convert2to1: (T2) -> T1?
+        ) {
+            val valueListener1: (T1) -> Unit = { value1 -> convert1to2(value1)?.let { live2.set(it) } }
+            val valueListener2: (T2) -> Unit = { value2 -> convert2to1(value2)?.let { live1.set(it) } }
+            live1.onValueChanged += valueListener1
+            live2.onValueChanged += valueListener2
+
+            live1.onFroze += { live2.onValueChanged -= valueListener2 }
+            live2.onFroze += { live1.onValueChanged -= valueListener1 }
+            convert2to1(live2.getSnapshot())?.let { live1.set(it) }
+        }
+
+        val lively = Lively(LiveGraph(RunImmediatelyExecutor()))
+
+        val liveInt = lively.createInt(123)
+        val liveStr = lively.createString()
+        val inSync = lively.create { liveInt.get().toString() == liveStr.get() }
+        bind(liveStr, liveInt, { strVal -> strVal.toIntOrNull() }, { intVal -> intVal.toString() })
+
+        assertThat(liveInt.getSnapshot()).isEqualTo(123)
+        assertThat(liveStr.getSnapshot()).isEqualTo("123")
+        assertThat(inSync.getSnapshot()).isTrue()
+
+        liveInt.set(987)
+        assertThat(liveStr.getSnapshot()).isEqualTo("987")
+        assertThat(inSync.getSnapshot()).isTrue()
+
+        liveStr.set("456")
+        assertThat(liveInt.getSnapshot()).isEqualTo(456)
+        assertThat(inSync.getSnapshot()).isTrue()
+
+        liveStr.set("Uh oh")
+        assertThat(liveInt.getSnapshot()).isEqualTo(456)
+        assertThat(inSync.getSnapshot()).isFalse()
+
+        liveStr.set("999")
+        assertThat(liveInt.getSnapshot()).isEqualTo(999)
+        assertThat(inSync.getSnapshot()).isTrue()
+
+        liveStr.freeze()
+        liveInt.set(0)
+
+        assertThat(liveStr.getSnapshot()).isEqualTo("999")
+        assertThat(liveInt.getSnapshot()).isEqualTo(0)
     }
 
     @Test
