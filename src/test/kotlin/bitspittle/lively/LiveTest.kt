@@ -111,7 +111,7 @@ class LiveTest {
     @Test
     fun cannotModifyLiveValueAfterFreezing() {
         val lively = Lively(testGraph)
-        val liveStr = lively.createString()
+        val liveStr = lively.createString("initial")
 
         var wasFrozen = false
         liveStr.onFroze += { wasFrozen = true }
@@ -131,11 +131,11 @@ class LiveTest {
         assertThrows<IllegalStateException> { liveStr.freeze() }
 
         // But you can safely query the snapshot
-        assertThat(liveStr.getSnapshot()).isEmpty()
+        assertThat(liveStr.getSnapshot()).isEqualTo("initial")
     }
 
     @Test
-    fun safeToFreezeAValueBeforeItGetsUpdated() {
+    fun youCanFreezeAValueBeforeItGetsUpdated() {
         val lively = Lively(testGraph)
 
         // A -> B -> C
@@ -316,5 +316,20 @@ class LiveTest {
         assertThat(live3.getSnapshot()).isEqualTo("123true")
         assertThat(live4.getSnapshot()).isEqualTo("eurt321")
         assertThat(live5.getSnapshot()).isEqualTo(130)
+    }
+
+    @Test
+    fun freezingCanBeDoneViaLively() {
+        val lively = Lively(testGraph)
+
+        val live1 = lively.create(123)
+        val live2 = lively.create(true)
+        val live3 = lively.create { live1.get().toString() + live2.get().toString() }
+        val live4 = lively.create { live3.get().reversed() }
+        val live5 = lively.create { live1.get() + live4.get().length }
+
+        assertThat(testGraph.isEmpty()).isFalse()
+        lively.freeze()
+        assertThat(testGraph.isEmpty()).isTrue()
     }
 }
