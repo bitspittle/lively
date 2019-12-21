@@ -70,10 +70,12 @@ class LiveGraph(private val graphExecutor: Executor) {
 
         dependencies.getOrPut(live) { mutableListOf() }.apply {
             forEach { oldDep ->
-                dependents.getValue(oldDep).apply {
-                    remove(live)
-                    if (this.isEmpty()) {
-                        dependents.remove(oldDep)
+                if (!deps.contains(oldDep)) {
+                    dependents.getValue(oldDep).apply {
+                        remove(live)
+                        if (this.isEmpty()) {
+                            dependents.remove(oldDep)
+                        }
                     }
                 }
             }
@@ -88,7 +90,11 @@ class LiveGraph(private val graphExecutor: Executor) {
         }
 
         deps.forEach { dep ->
-            dependents.getOrPut(dep) { mutableListOf() }.add(live)
+            dependents.getOrPut(dep) { mutableListOf() }.apply {
+                if (!contains(live)) {
+                    add(live)
+                }
+            }
         }
     }
 
