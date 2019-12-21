@@ -27,47 +27,28 @@ class LiveTest {
     fun observeWorks() {
         val lively = Lively(testGraph)
         val liveInt = lively.create(123)
-        val liveStr1 = lively.createString()
-        assertThat(liveStr1.getSnapshot()).isEmpty()
-
-        liveStr1.observe { liveInt.get().toString() }
-        val liveStr2 = lively.create { liveInt.get().toString() }
-
+        val liveStr1 = lively.create { liveInt.get().toString() }
         assertThat(liveStr1.getSnapshot()).isEqualTo("123")
-        assertThat(liveStr2.getSnapshot()).isEqualTo("123")
+
+        val liveStr2 = lively.create { liveStr1.get().reversed() }
+        assertThat(liveStr2.getSnapshot()).isEqualTo("321")
 
         liveInt.set(456)
         assertThat(liveStr1.getSnapshot()).isEqualTo("123")
-        assertThat(liveStr2.getSnapshot()).isEqualTo("123")
+        assertThat(liveStr2.getSnapshot()).isEqualTo("321")
 
         graphExecutor.runNext() // liveStr1 updated first (because it was created first)
         assertThat(liveStr1.getSnapshot()).isEqualTo("456")
-        assertThat(liveStr2.getSnapshot()).isEqualTo("123")
+        assertThat(liveStr2.getSnapshot()).isEqualTo("321")
+
+        graphExecutor.runNext()
+        assertThat(liveStr1.getSnapshot()).isEqualTo("456")
+        assertThat(liveStr2.getSnapshot()).isEqualTo("654")
 
         liveInt.set(789)
         graphExecutor.runRemaining()
         assertThat(liveStr1.getSnapshot()).isEqualTo("789")
-        assertThat(liveStr2.getSnapshot()).isEqualTo("789")
-    }
-
-    @Test
-    fun cyclesNotAllowed() {
-        val lively = Lively(testGraph)
-
-        val liveInt1 = lively.createInt()
-        val liveInt2 = lively.createInt()
-        val liveInt3 = lively.createInt()
-
-        liveInt3.observe { liveInt2.get() }
-        liveInt2.observe { liveInt1.get() }
-
-        assertThrows<IllegalArgumentException> {
-            liveInt1.observe { liveInt3.get() }
-        }
-
-        // Clearing the observe callback clears the dependencies
-        liveInt3.clearObserve()
-        liveInt1.observe { liveInt3.get() }
+        assertThat(liveStr2.getSnapshot()).isEqualTo("987")
     }
 
     @Test
@@ -143,10 +124,10 @@ class LiveTest {
         assertThat(wasFrozen).isTrue()
         assertThat(liveStr.frozen).isTrue()
 
-        // Once frozen, a bunch of mutating functions cannot be called
+        // Once frozen, many mutating functions cannot be called
         assertThrows<IllegalStateException> { liveStr.set("dummy") }
-        assertThrows<IllegalStateException> { liveStr.observe { "dummy" } }
-        assertThrows<IllegalStateException> { liveStr.clearObserve() }
+        assertThrows<IllegalStateException> { liveStr.onValueChanged += {} }
+        assertThrows<IllegalStateException> { liveStr.onFroze += {} }
         assertThrows<IllegalStateException> { liveStr.freeze() }
 
         // But you can safely query the snapshot
@@ -259,7 +240,7 @@ class LiveTest {
                 }
         }
 
-        fun wrapLabel(label: FakeLabel): MutableLive<String> {
+        fun wrapLabel(label: FakeLabel): SettableLive<String> {
             val liveLabel = lively.create(label.text)
             val listener: (FakeLabel) -> Unit = { sender -> liveLabel.set(sender.text) }
             label.listeners.add(listener)

@@ -15,6 +15,10 @@ import bitspittle.lively.extensions.expectCurrent
  * off-thread will throw an exception.
  */
 abstract class Live<T> internal constructor() {
+    abstract val onValueChanged: Event<T>
+    abstract val onFroze: UnitEvent
+    abstract val frozen: Boolean
+
     /**
      * Grab the latest snapshot taken for this live instance.
      *
@@ -43,9 +47,6 @@ abstract class Live<T> internal constructor() {
      */
     abstract fun getSnapshot(): T
 
-    abstract val frozen: Boolean
-    abstract fun freeze()
-
     internal abstract fun update()
 
     override fun toString(): String {
@@ -54,17 +55,41 @@ abstract class Live<T> internal constructor() {
 }
 
 /**
- * Represents a value that can automatically be updated when a value it depends on also changes.
- *
- * Do not create directly; instead, use [Lively.create]
+ * An interface to a [Live] with more permissions - this is useful for the part of the project that
+ * created it, whereas it might expose the non-mutable part via getters.
  */
-class MutableLive<T> private constructor(private val lively: Lively) : Live<T>() {
+abstract class MutableLive<T> : Live<T>() {
+    /**
+     * Immediately lock this Live value to its snapshot, rendering it immutable.
+     *
+     * This will have the added effect of removing the value from the dependency graph and
+     * releasing some memory. Once called, only [getSnapshot] will work -- any attempt to
+     * mutate the object will result in an exception.
+     */
+    abstract fun freeze()
+}
 
+/**
+ * A [MutableLive] that provides a [set] method.
+ *
+ * As an API, this is designed to be exposed for [Live] values that are leaf nodes - that is, they
+ * are standalone values that don't depend on anything, but others may depend on them. Live values
+ * which depend on other live values should be exposed to callers via the [MutableLive] interface.
+ *
+ * As an implementation detail, this class currently implements both leaf nodes and intermediate
+ * nodes (i.e. it manages the logic around observing target nodes), but as far as users of the
+ * class are concerned, this detail is concealed from them.
+ */
+class SettableLive<T> private constructor(private val lively: Lively) : MutableLive<T>() {
+    /**
+     * See comment for [snapshot].
+     */
     private class WrappedValue<T>(var value: T)
 
     internal constructor(lively: Lively, initialValue: T) : this(lively) {
         snapshot = WrappedValue(initialValue)
     }
+
     internal constructor(lively: Lively, observe: LiveScope.() -> T) : this(lively) {
         lively.scope.recordDependencies(this) { snapshot = WrappedValue(observe()) }
         this.observe = observe
@@ -74,11 +99,17 @@ class MutableLive<T> private constructor(private val lively: Lively) : Live<T>()
         lively.graph.add(this)
     }
 
-    val onValueChanged: Event<T>
-        get() = lively.graph.onValueChanged(this)
+    override val onValueChanged: Event<T>
+        get() {
+            checkValidStateFor("onValueChanged", true)
+            return lively.graph.onValueChanged(this)
+        }
 
-    val onFroze: UnitEvent
-        get() = lively.graph.onFroze(this)
+    override val onFroze: UnitEvent
+        get() {
+            checkValidStateFor("onFroze", true)
+            return lively.graph.onFroze(this)
+        }
 
     /**
      * An instance which wraps the last snapshotted value.
@@ -91,7 +122,10 @@ class MutableLive<T> private constructor(private val lively: Lively) : Live<T>()
     private lateinit var snapshot: WrappedValue<T>
 
     /**
-     * See [observe].
+     * If set, this represents a live value that may depends on other live values.
+     *
+     * Calling [set] on a live value with an observe block will throw an exception, although if we
+     * designed the API right, this should be impossible to do.
      */
     private var observe: (LiveScope.() -> T)? = null
 
@@ -107,29 +141,18 @@ class MutableLive<T> private constructor(private val lively: Lively) : Live<T>()
         checkValidStateFor("set", true)
         if (observe != null) {
             throw IllegalStateException(
-                "Can't set a Live value directly if it previously called `observe`. Call `clearObserve` maybe?")
+                "Can't set a Live value directly if it was created to observe other Live values."
+            )
         }
         handleSet(value)
     }
 
-
-    fun observe(observe: LiveScope.() -> T) {
-        checkValidStateFor("observe", true)
-        this.observe = observe
-        runObserveIfNotNull()
-    }
-
-    fun clearObserve() {
-        checkValidStateFor("clearObserve", true)
+    override fun freeze() {
+        checkValidStateFor("freeze", true)
         if (this.observe != null) {
             this.observe = null
             lively.graph.setDependencies(this, emptyList())
         }
-    }
-
-    override fun freeze() {
-        checkValidStateFor("freeze", true)
-        clearObserve()
         frozen = true
         lively.graph.freeze(this)
     }
