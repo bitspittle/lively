@@ -228,6 +228,41 @@ class LiveTest {
     }
 
     @Test
+    fun liveBehaviorWithObjectsWorks() {
+        data class User(val name: String, val age: Int)
+
+        val userJoe = User("Joe", 34)
+        val userJane = User("Jane", 29)
+
+        val lively = Lively(testGraph)
+        val liveUser = lively.create(userJoe)
+        val liveDisplay = lively.create { "Name: ${liveUser.get().name}" }
+
+        var nameUpdatedCount = 0
+        liveDisplay.onValueChanged += { ++nameUpdatedCount }
+
+        assertThat(liveDisplay.getSnapshot()).isEqualTo("Name: Joe")
+        assertThat(nameUpdatedCount).isEqualTo(0)
+
+        liveUser.set(userJane)
+        graphExecutor.runRemaining()
+        assertThat(liveDisplay.getSnapshot()).isEqualTo("Name: Jane")
+        assertThat(nameUpdatedCount).isEqualTo(1)
+
+        liveUser.set(userJoe)
+        graphExecutor.runRemaining()
+        assertThat(liveDisplay.getSnapshot()).isEqualTo("Name: Joe")
+        assertThat(nameUpdatedCount).isEqualTo(2)
+
+        // Different objects that equal each other don't trigger graph propogation
+        val userJoeCopy = userJoe.copy()
+        assertThat(userJoeCopy).isNotSameAs(userJoe)
+
+        liveUser.set(userJoeCopy)
+        assertThat(graphExecutor.count).isEqualTo(0)
+    }
+
+    @Test
     fun liveCanWrapOtherValueTypes() {
         val lively = Lively(testGraph)
 
