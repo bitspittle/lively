@@ -29,19 +29,19 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
     /**
      * Create a live instance from a fixed value.
      */
-    fun <T> create(initialValue: T): SettableLive<T> {
+    fun <T> create(initialValue: T): SourceLive<T> {
         checkValidStateFor("create")
 
-        return SettableLive(this, initialValue).also { ownedLives.add(it) }
+        return SourceLive(this, initialValue).also { ownedLives.add(it) }
     }
 
     /**
      * Create a live instance that depends on target live instances.
      */
-    fun <T> create(block: LiveScope.() -> T): MutableLive<T> {
+    fun <T> create(observe: LiveScope.() -> T): ObservingLive<T> {
         checkValidStateFor("create")
 
-        return SettableLive(this, block).also { ownedLives.add(it) }
+        return ObservingLive(this, observe).also { ownedLives.add(it) }
     }
 
     /**
@@ -55,7 +55,7 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
 
         // Create an internal dummy node that only exists to run a side effect when any of its
         // dependencies change.
-        ownedLives.add(SettableLive(this) { sideEffect() })
+        ownedLives.add(ObservingLive(this) { sideEffect() })
     }
 
     private fun checkValidStateFor(method: String) {

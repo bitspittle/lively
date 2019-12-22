@@ -1,3 +1,5 @@
+@file:Suppress("LeakingThis") // "this" only leaked as hashcode
+
 package bitspittle.lively
 
 import bitspittle.lively.event.Event
@@ -11,15 +13,15 @@ import bitspittle.lively.extensions.expectCurrent
  * values depending on it).
  *
  * Users do not create instances directly; instead, they should instantiate a [Lively] and use that
- * as a live factory instead.
+ * as a live factory instead. See also: [Lively.create]
  *
  * When a live instance is created, it is associated with a thread, and any attempt to access it
  * off-thread will throw an exception.
  */
-abstract class Live<T> internal constructor() {
-    abstract val onValueChanged: Event<T>
-    abstract val onFroze: UnitEvent
-    abstract val frozen: Boolean
+interface Live<T> {
+    val onValueChanged: Event<T>
+    val onFroze: UnitEvent
+    val frozen: Boolean
 
     /**
      * Grab the latest snapshot taken for this live instance.
@@ -36,70 +38,60 @@ abstract class Live<T> internal constructor() {
      * To summarize:
      *
      * ```
-     * // Set only once...
-     * liveSrc.set("hello")
-     * liveDst.set(liveSrc.getSnapshot()) // dst -> "hello"
-     * liveSrc.set("world")               // dst -> "hello"
+     * # Set only once...
+     * liveSrc = lively.create("hello")
+     * liveDst = lively.create(liveSrc.getSnapshot())
+     * // liveDst equals "hello"
+     * liveSrc.set("world")
+     * // liveDst still equals "hello"
      *
-     * // Kept in sync...
-     * liveSrc.set("hello")
-     * liveDst.observe { liveSrc.get() } // dst -> "hello"
-     * liveSrc.set("world")              // dst -> "world"
+     * # Kept in sync...
+     * liveSrc = lively.create("hello")
+     * liveDst = lively.create { liveSrc.get() }
+     * // liveDst equals "hello"
+     * liveSrc.set("world")
+     * // liveDst updated to "world"
      * ```
      */
-    abstract fun getSnapshot(): T
-
-    internal abstract fun update()
-
-    override fun toString(): String {
-        return "Live{${getSnapshot()}}"
-    }
+    fun getSnapshot(): T
 }
 
 /**
- * An interface to a [Live] with more permissions - this is useful for the part of the project that
- * created it, whereas it might expose the non-mutable part via getters.
+ * An interface to expose for source nodes you want to provide [set] access to for callers without
+ * allowing them to freeze it.
  */
-abstract class MutableLive<T> : Live<T>() {
-    /**
-     * Immediately lock this Live value to its snapshot, rendering it immutable.
-     *
-     * This will have the added effect of removing the value from the dependency graph and
-     * releasing some memory. Once called, only [getSnapshot] will work -- any attempt to
-     * mutate the object will result in an exception.
-     */
-    abstract fun freeze()
+interface SettableLive<T> : Live<T> {
+    fun set(value: T)
 }
 
 /**
- * A [MutableLive] that provides a [set] method.
+ * A mutable access to a [Live] instance.
  *
- * As an API, this is designed to be exposed for [Live] values that are leaf nodes - that is, they
- * are standalone values that don't depend on anything, but others may depend on them. Live values
- * which depend on other live values should be exposed to callers via the [MutableLive] interface.
- *
- * As an implementation detail, this class currently implements both leaf nodes and intermediate
- * nodes (i.e. it manages the logic around observing target nodes), but as far as users of the
- * class are concerned, this detail is concealed from them.
+ * These are values returned by [Lively], so owners of the values have extra permissions when
+ * interacting with them. However, when exposing live instances to callers, you may wish to only
+ * expose the [Live] or [SettableLive], so callers can't freeze them unexpectedly, for example.
  */
-class SettableLive<T> private constructor(private val lively: Lively) : MutableLive<T>() {
-    /**
-     * See comment for [snapshot].
-     */
-    private class WrappedValue<T>(var value: T)
-
-    internal constructor(lively: Lively, initialValue: T) : this(lively) {
-        snapshot = WrappedValue(initialValue)
-    }
-
-    internal constructor(lively: Lively, observe: LiveScope.() -> T) : this(lively) {
-        lively.scope.recordDependencies(this) { snapshot = WrappedValue(observe()) }
-        this.observe = observe
-    }
-
+abstract class MutableLive<T>(private val lively: Lively) : Live<T> {
     init {
         lively.graph.add(this)
     }
+
+    /**
+     * See comment for [snapshot].
+     */
+    protected class WrappedValue<T>(var value: T)
+
+    /**
+     * An instance which wraps the last snapshotted value.
+     *
+     * Note: Ideally this would have just been `private lateinit var snapshot: T` but
+     * lateinit does not support potentially nullable types, e.g. `T = Int?`
+     * By creating a wrapper class, we can ensure that `WrappedValue<T>` is a non-nullable type,
+     * even if `T` is itself nullable.
+     *
+     * This value MUST get set by subclass constructors.
+     */
+    protected lateinit var snapshot: WrappedValue<T>
 
     override val onValueChanged: Event<T>
         get() {
@@ -119,55 +111,36 @@ class SettableLive<T> private constructor(private val lively: Lively) : MutableL
             return lively.graph.onFroze(this)
         }
 
-    /**
-     * An instance which wraps the last snapshotted value.
-     *
-     * Note: Ideally this would have just been `private lateinit var snapshot: T` but
-     * lateinit does not support potentially nullable types, e.g. `T = Int?`
-     * By creating a wrapper class, we can ensure that `WrappedValue<T>` is a non-nullable type,
-     * even if `T` is itself nullable.
-     */
-    private lateinit var snapshot: WrappedValue<T>
-
-    /**
-     * If set, this represents a live value that may depends on other live values.
-     *
-     * Calling [set] on a live value with an observe block will throw an exception, although if we
-     * designed the API right, this should be impossible to do.
-     */
-    private var observe: (LiveScope.() -> T)? = null
-
     override var frozen = false
-        private set
 
     override fun getSnapshot(): T {
         checkValidStateFor("getSnapshot", false)
         return snapshot.value
     }
 
-    fun set(value: T) {
-        checkValidStateFor("set", true)
-        if (observe != null) {
-            throw IllegalStateException(
-                "Can't set a Live value directly if it was created to observe other Live values."
-            )
-        }
-        handleSet(value)
-    }
-
-    override fun freeze() {
+    /**
+     * Immediately lock this Live value to its snapshot, rendering it immutable.
+     *
+     * This will have the added effect of removing the value from the dependency graph, clearing
+     * all events, and releasing some memory. Once called, only [getSnapshot] will work
+     * -- any attempt to mutate the object will result in an exception.
+     */
+    fun freeze() {
         checkValidStateFor("freeze", true)
-        if (this.observe != null) {
-            this.observe = null
-            lively.graph.setDependencies(this, emptyList())
-        }
         frozen = true
         lively.graph.freeze(this)
     }
 
-    override fun update() = runObserveIfNotNull()
+    /**
+     * An inner set method, not to be exposed to normal callers.
+     */
+    protected fun setDirectly(value: T) {
+        val valueChanged = snapshot.value != value
+        snapshot.value = value
+        lively.graph.notifyUpdated(this, valueChanged)
+    }
 
-    private fun checkValidStateFor(method: String, mutating: Boolean) {
+    protected fun checkValidStateFor(method: String, mutating: Boolean) {
         if (mutating && frozen) {
             throw IllegalStateException("Attempted to call `$method` on frozen live value: $this")
         }
@@ -181,17 +154,37 @@ class SettableLive<T> private constructor(private val lively: Lively) : MutableL
         }
     }
 
-    private fun runObserveIfNotNull() {
-        observe?.let { observe ->
-            lively.scope.recordDependencies(this) {
-                handleSet(observe())
-            }
-        }
+    override fun toString(): String {
+        return "Live{${getSnapshot()}}"
+    }
+}
+
+/**
+ * A mutable [Live] whose value can not be set directly, but rather one that derives its value
+ * listening to other live values.
+ */
+class ObservingLive<T> internal constructor(private val lively: Lively, private val observe: LiveScope.() -> T) : MutableLive<T>(lively) {
+    init {
+        lively.scope.recordDependencies(this) { snapshot = WrappedValue(observe()) }
     }
 
-    private fun handleSet(value: T) {
-        val valueChanged = snapshot.value != value
-        snapshot.value = value
-        lively.graph.notifyUpdated(this, valueChanged)
+    internal fun update() {
+        lively.scope.recordDependencies(this) {
+            setDirectly(observe())
+        }
+    }
+}
+
+/**
+ * A mutable [Live] that represents a source value which can be changed by calling [set].
+ */
+class SourceLive<T> internal constructor(lively: Lively, initialValue: T) : MutableLive<T>(lively), SettableLive<T> {
+    init {
+        snapshot = WrappedValue(initialValue)
+    }
+
+    override fun set(value: T) {
+        checkValidStateFor("set", true)
+        setDirectly(value)
     }
 }

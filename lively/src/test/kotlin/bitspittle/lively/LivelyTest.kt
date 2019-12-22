@@ -1,9 +1,7 @@
 package bitspittle.lively
 
 import bitspittle.lively.exec.RunImmediatelyExecutor
-import bitspittle.lively.extensions.createDouble
 import bitspittle.lively.extensions.createInt
-import bitspittle.lively.extensions.createString
 import bitspittle.lively.graph.LiveGraph
 import bitspittle.truthish.assertThat
 import bitspittle.truthish.assertThrows
@@ -26,7 +24,7 @@ class LivelyTest {
     @Test
     fun liveValuesCannotCrossThreadBoundaries() {
         lateinit var lively: Lively
-        lateinit var liveInt: SettableLive<Int>
+        lateinit var liveInt: SourceLive<Int>
         val latchValuesSet = CountDownLatch(1)
         val latchThread2Finished = CountDownLatch(1)
 

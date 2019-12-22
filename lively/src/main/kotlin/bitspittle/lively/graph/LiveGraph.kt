@@ -2,6 +2,8 @@ package bitspittle.lively.graph
 
 import bitspittle.lively.Live
 import bitspittle.lively.Lively
+import bitspittle.lively.MutableLive
+import bitspittle.lively.ObservingLive
 import bitspittle.lively.event.Event
 import bitspittle.lively.event.MutableEvent
 import bitspittle.lively.event.MutableUnitEvent
@@ -57,7 +59,10 @@ class LiveGraph(private val graphExecutor: Executor) {
             if (deps.any { !lives.contains(it) }) {
                 throw IllegalArgumentException(
                     """
-                        Graph cannot add unknown live value as dependency: $live
+                        Graph cannot add unknown live value as dependency.
+
+                        Current Live: $live
+                        Bad dependency: ${deps.first { !lives.contains(it) }}
 
                         Are you calling `get` on a value created from a different Lively?
                     """.trimIndent())
@@ -104,7 +109,7 @@ class LiveGraph(private val graphExecutor: Executor) {
             invoke()
             clear()
         }
-        // If we ever had dependencies, they were already cleared by Live#freeze, which calls clearObserve
+        setDependencies(live, emptyList())
         dependents[live]?.forEach { dep ->
             dependencies.getValue(dep).apply {
                 remove(live)
@@ -140,7 +145,9 @@ class LiveGraph(private val graphExecutor: Executor) {
             dependents[live]?.toMutableList()?.forEach { dependent ->
                 if (pendingUpdate.add(dependent)) {
                     graphExecutor.submit {
-                        dependent.update()
+                        // We know this is an observing live since it has a dependency
+                        @Suppress("UNCHECKED_CAST")
+                        (dependent as ObservingLive<T>).update()
                         pendingUpdate.remove(dependent)
                     }
                 }

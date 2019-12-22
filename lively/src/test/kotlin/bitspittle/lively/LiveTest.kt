@@ -278,7 +278,7 @@ class LiveTest {
                 }
         }
 
-        fun wrapLabel(label: FakeLabel): SettableLive<String> {
+        fun wrapLabel(label: FakeLabel): SourceLive<String> {
             val liveLabel = lively.create(label.text)
             val listener: (FakeLabel) -> Unit = { sender -> liveLabel.set(sender.text) }
             label.listeners.add(listener)
@@ -315,8 +315,8 @@ class LiveTest {
     fun twoLivesCanBeTwoWayBoundViaListeners() {
         // TODO: Actually move an API like this into Lively?
         fun <T1, T2> bind(
-            live1: SettableLive<T1>,
-            live2: SettableLive<T2>,
+            live1: SourceLive<T1>,
+            live2: SourceLive<T2>,
             convert1to2: (T1) -> T2?,
             convert2to1: (T2) -> T1?
         ) {

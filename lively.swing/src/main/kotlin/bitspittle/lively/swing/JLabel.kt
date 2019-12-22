@@ -2,16 +2,12 @@ package bitspittle.lively.swing
 
 import bitspittle.lively.LiveScope
 import bitspittle.lively.Lively
-import bitspittle.lively.MutableLive
-import bitspittle.lively.SettableLive
-import java.awt.event.ActionEvent
-import java.awt.event.ActionListener
-import java.beans.PropertyChangeEvent
+import bitspittle.lively.ObservingLive
+import bitspittle.lively.SourceLive
 import java.beans.PropertyChangeListener
-import javax.swing.JCheckBox
 import javax.swing.JLabel
 
-fun Lively.wrapSelected(label: JLabel): SettableLive<String> {
+fun Lively.wrapSelected(label: JLabel): SourceLive<String> {
     val liveText = create(label.text)
     val textListener = PropertyChangeListener { liveText.set(label.text) }
     label.addPropertyChangeListener("text", textListener)
@@ -21,8 +17,8 @@ fun Lively.wrapSelected(label: JLabel): SettableLive<String> {
     return liveText
 }
 
-fun Lively.wrapText(label: JLabel, block: LiveScope.() -> String): MutableLive<String> {
-    val liveText = create(block)
+fun Lively.wrapText(label: JLabel, observe: LiveScope.() -> String): ObservingLive<String> {
+    val liveText = create(observe)
     listen { label.text = liveText.get() }
 
     return liveText
