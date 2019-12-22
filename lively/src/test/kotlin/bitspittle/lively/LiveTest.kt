@@ -426,7 +426,7 @@ class LiveTest {
             val live2 = lively.create(true)
             val live3 = lively.create { live1.get().toString() + live2.get().toString() }
             val live4 = lively.create { live3.get().reversed() }
-            val live5 = lively.create { live1.get() + live4.get().length }
+            lively.create { live1.get() + live4.get().length }
 
             assertThat(testGraph.nodeCount).isEqualTo(5)
 

@@ -57,6 +57,13 @@ interface Live<T> {
 }
 
 /**
+ * An interface for a [Live] instance that can be frozen.
+ */
+interface FreezableLive<T> : Live<T> {
+    fun freeze()
+}
+
+/**
  * An interface to expose for source nodes you want to provide [set] access to for callers without
  * allowing them to freeze it.
  */
@@ -65,13 +72,9 @@ interface SettableLive<T> : Live<T> {
 }
 
 /**
- * A mutable access to a [Live] instance.
- *
- * These are values returned by [Lively], so owners of the values have extra permissions when
- * interacting with them. However, when exposing live instances to callers, you may wish to only
- * expose the [Live] or [SettableLive], so callers can't freeze them unexpectedly, for example.
+ * Core implementation logic for a [Live] instance.
  */
-abstract class MutableLive<T>(private val lively: Lively) : Live<T> {
+abstract class LiveImpl<T>(private val lively: Lively) : FreezableLive<T> {
     init {
         lively.graph.add(this)
     }
@@ -119,7 +122,7 @@ abstract class MutableLive<T>(private val lively: Lively) : Live<T> {
      * all events, and releasing some memory. Once called, only [getSnapshot] will work
      * -- any attempt to mutate the object will result in an exception.
      */
-    fun freeze() {
+    override fun freeze() {
         checkValidStateFor("freeze", true, frozenAware = true)
         if (!frozen) {
             frozen = true
@@ -160,7 +163,7 @@ abstract class MutableLive<T>(private val lively: Lively) : Live<T> {
  * A mutable [Live] whose value can not be set directly, but rather one that derives its value
  * listening to other live values.
  */
-class ObservingLive<T> internal constructor(private val lively: Lively, private val observe: LiveScope.() -> T) : MutableLive<T>(lively) {
+class ObservingLive<T> internal constructor(private val lively: Lively, private val observe: LiveScope.() -> T) : LiveImpl<T>(lively) {
     init {
         lively.scope.recordDependencies(this) { snapshot = WrappedValue(observe()) }
     }
@@ -175,7 +178,7 @@ class ObservingLive<T> internal constructor(private val lively: Lively, private 
 /**
  * A mutable [Live] that represents a source value which can be changed by calling [set].
  */
-class SourceLive<T> internal constructor(lively: Lively, initialValue: T) : MutableLive<T>(lively), SettableLive<T> {
+class SourceLive<T> internal constructor(lively: Lively, initialValue: T) : LiveImpl<T>(lively), SettableLive<T> {
     init {
         snapshot = WrappedValue(initialValue)
     }
