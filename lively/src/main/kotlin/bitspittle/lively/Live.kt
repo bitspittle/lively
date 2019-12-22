@@ -72,47 +72,30 @@ interface SettableLive<T> : Live<T> {
 }
 
 /**
- * Core implementation logic for a [Live] instance.
+ * Shared implementation logic for all [Live] instances.
  */
-abstract class LiveImpl<T>(private val lively: Lively) : FreezableLive<T> {
+private class LiveImpl<T>(private val lively: Lively, private val target: Live<T>, private var value: T) {
     init {
-        lively.graph.add(this)
+        lively.graph.add(target)
     }
 
-    /**
-     * See comment for [snapshot].
-     */
-    protected class WrappedValue<T>(var value: T)
-
-    /**
-     * An instance which wraps the last snapshotted value.
-     *
-     * Note: Ideally this would have just been `private lateinit var snapshot: T` but
-     * lateinit does not support potentially nullable types, e.g. `T = Int?`
-     * By creating a wrapper class, we can ensure that `WrappedValue<T>` is a non-nullable type,
-     * even if `T` is itself nullable.
-     *
-     * This value MUST get set by subclass constructors.
-     */
-    protected lateinit var snapshot: WrappedValue<T>
-
-    override val onValueChanged: Event<T>
+    val onValueChanged: Event<T>
         get() {
             checkValidStateFor("onValueChanged", true, frozenAware = true)
-            return if (frozen) StubEvent.typed() else { lively.graph.onValueChanged(this) }
+            return if (frozen) StubEvent.typed() else { lively.graph.onValueChanged(target) }
         }
 
-    override val onFroze: UnitEvent
+    val onFroze: UnitEvent
         get() {
             checkValidStateFor("onFroze", true, frozenAware = true)
-            return if (frozen) StubUnitEvent else lively.graph.onFroze(this)
+            return if (frozen) StubUnitEvent else lively.graph.onFroze(target)
         }
 
-    override var frozen = false
+    var frozen = false
 
-    override fun getSnapshot(): T {
+    fun getSnapshot(): T {
         checkValidStateFor("getSnapshot", false)
-        return snapshot.value
+        return value
     }
 
     /**
@@ -122,27 +105,27 @@ abstract class LiveImpl<T>(private val lively: Lively) : FreezableLive<T> {
      * all events, and releasing some memory. Once called, only [getSnapshot] will work
      * -- any attempt to mutate the object will result in an exception.
      */
-    override fun freeze() {
+    fun freeze() {
         checkValidStateFor("freeze", true, frozenAware = true)
         if (!frozen) {
             frozen = true
-            lively.graph.freeze(this)
+            lively.graph.freeze(target)
         }
     }
 
     /**
      * An inner set method, not to be exposed to normal callers.
      */
-    protected fun setDirectly(value: T) {
+    fun setDirectly(value: T) {
         assert (!frozen)
-        val valueChanged = snapshot.value != value
-        snapshot.value = value
-        lively.graph.notifyUpdated(this, valueChanged)
+        val valueChanged = this.value != value
+        this.value = value
+        lively.graph.notifyUpdated(target, valueChanged)
     }
 
-    protected fun checkValidStateFor(method: String, mutating: Boolean, frozenAware: Boolean = false) {
+    fun checkValidStateFor(method: String, mutating: Boolean, frozenAware: Boolean = false) {
         if (mutating && !frozenAware && frozen) {
-            throw IllegalStateException("Attempted to call `$method` on frozen live value: $this")
+            throw IllegalStateException("Attempted to call `$method` on frozen live value: $target")
         }
 
         lively.graph.ownedThread.expectCurrent {
@@ -150,7 +133,7 @@ abstract class LiveImpl<T>(private val lively: Lively) : FreezableLive<T> {
         }
 
         if (mutating && lively.scope.isRecording) {
-            throw IllegalStateException("Attempted to call `$method` inside an observe block on: $this")
+            throw IllegalStateException("Attempted to call `$method` inside an observe block on: $target")
         }
     }
 
@@ -163,28 +146,47 @@ abstract class LiveImpl<T>(private val lively: Lively) : FreezableLive<T> {
  * A mutable [Live] whose value can not be set directly, but rather one that derives its value
  * listening to other live values.
  */
-class ObservingLive<T> internal constructor(private val lively: Lively, private val observe: LiveScope.() -> T) : LiveImpl<T>(lively) {
+class ObservingLive<T> internal constructor(
+    private val lively: Lively,
+    private val observe: LiveScope.() -> T) : FreezableLive<T> {
+
+    private lateinit var impl: LiveImpl<T>
     init {
-        lively.scope.recordDependencies(this) { snapshot = WrappedValue(observe()) }
+        lively.scope.recordDependencies(this) {
+            impl = LiveImpl(lively, this@ObservingLive, observe())
+        }
     }
 
     internal fun update() {
         lively.scope.recordDependencies(this) {
-            setDirectly(observe())
+            impl.setDirectly(observe())
         }
     }
+
+    override val onValueChanged get() = impl.onValueChanged
+    override val onFroze get() = impl.onFroze
+
+    override val frozen get() = impl.frozen
+
+    override fun getSnapshot() = impl.getSnapshot()
+    override fun freeze() = impl.freeze()
 }
 
 /**
  * A mutable [Live] that represents a source value which can be changed by calling [set].
  */
-class SourceLive<T> internal constructor(lively: Lively, initialValue: T) : LiveImpl<T>(lively), SettableLive<T> {
-    init {
-        snapshot = WrappedValue(initialValue)
-    }
+class SourceLive<T> internal constructor(lively: Lively, initialValue: T) : FreezableLive<T>, SettableLive<T> {
+    private var impl: LiveImpl<T> = LiveImpl(lively, this, initialValue)
+
+    override val onValueChanged get() = impl.onValueChanged
+    override val onFroze get() = impl.onFroze
+    override val frozen get() = impl.frozen
+
+    override fun getSnapshot() = impl.getSnapshot()
+    override fun freeze() = impl.freeze()
 
     override fun set(value: T) {
-        checkValidStateFor("set", true)
-        setDirectly(value)
+        impl.checkValidStateFor("set", true)
+        impl.setDirectly(value)
     }
 }
