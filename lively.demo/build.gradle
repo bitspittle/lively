@@ -7,5 +7,5 @@ version '0.0.1'
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
     implementation project(':lively')
-    implementation project(':lively.fx')
+    implementation project(':lively.swing')
 }

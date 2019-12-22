@@ -1,5 +1,5 @@
 rootProject.name = 'lively'
 include 'lively'
-include 'lively.fx'
+include 'lively.swing'
 include 'lively.demo'
 
