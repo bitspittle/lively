@@ -1,2 +1,5 @@
 rootProject.name = 'lively'
+include 'lively'
+include 'lively.fx'
+include 'lively.demo'
 

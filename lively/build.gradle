@@ -1,0 +1,11 @@
+plugins {
+    id 'org.jetbrains.kotlin.jvm'
+}
+
+version '0.8.0'
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+    testImplementation "io.github.bitspittle:truthish-jvm:0.6.0"
+    testImplementation 'junit:junit:4.12'
+}
