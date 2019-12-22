@@ -95,20 +95,14 @@ abstract class MutableLive<T>(private val lively: Lively) : Live<T> {
 
     override val onValueChanged: Event<T>
         get() {
-            if (frozen) {
-                return StubEvent.typed()
-            }
-            checkValidStateFor("onValueChanged", true)
-            return lively.graph.onValueChanged(this)
+            checkValidStateFor("onValueChanged", true, frozenAware = true)
+            return if (frozen) StubEvent.typed() else { lively.graph.onValueChanged(this) }
         }
 
     override val onFroze: UnitEvent
         get() {
-            if (frozen) {
-                return StubUnitEvent
-            }
-            checkValidStateFor("onFroze", true)
-            return lively.graph.onFroze(this)
+            checkValidStateFor("onFroze", true, frozenAware = true)
+            return if (frozen) StubUnitEvent else lively.graph.onFroze(this)
         }
 
     override var frozen = false
@@ -126,22 +120,25 @@ abstract class MutableLive<T>(private val lively: Lively) : Live<T> {
      * -- any attempt to mutate the object will result in an exception.
      */
     fun freeze() {
-        checkValidStateFor("freeze", true)
-        frozen = true
-        lively.graph.freeze(this)
+        checkValidStateFor("freeze", true, frozenAware = true)
+        if (!frozen) {
+            frozen = true
+            lively.graph.freeze(this)
+        }
     }
 
     /**
      * An inner set method, not to be exposed to normal callers.
      */
     protected fun setDirectly(value: T) {
+        assert (!frozen)
         val valueChanged = snapshot.value != value
         snapshot.value = value
         lively.graph.notifyUpdated(this, valueChanged)
     }
 
-    protected fun checkValidStateFor(method: String, mutating: Boolean) {
-        if (mutating && frozen) {
+    protected fun checkValidStateFor(method: String, mutating: Boolean, frozenAware: Boolean = false) {
+        if (mutating && !frozenAware && frozen) {
             throw IllegalStateException("Attempted to call `$method` on frozen live value: $this")
         }
 

@@ -127,7 +127,6 @@ class LiveTest {
 
         // Once frozen, many mutating functions cannot be called
         assertThrows<IllegalStateException> { liveStr.set("dummy") }
-        assertThrows<IllegalStateException> { liveStr.freeze() }
 
         // But you can safely query the snapshot
         assertThat(liveStr.getSnapshot()).isEqualTo("initial")
@@ -135,6 +134,10 @@ class LiveTest {
         // You can add listeners to a frozen value, but it's a no-op
         liveStr.onValueChanged += {}
         liveStr.onFroze += {}
+
+        // You can also call freeze on a frozen value (also a no-op)
+        liveStr.freeze()
+
     }
 
     @Test
@@ -392,28 +395,46 @@ class LiveTest {
     fun freezingShouldRemoveNodesFromTheGraph() {
         val lively = Lively(testGraph)
 
-        val live1 = lively.create(123)
-        val live2 = lively.create(true)
-        val live3 = lively.create { live1.get().toString() + live2.get().toString() }
-        val live4 = lively.create { live3.get().reversed() }
-        val live5 = lively.create { live1.get() + live4.get().length }
+        run {
+            val live1 = lively.create(123)
+            val live2 = lively.create(true)
+            val live3 = lively.create { live1.get().toString() + live2.get().toString() }
+            val live4 = lively.create { live3.get().reversed() }
+            val live5 = lively.create { live1.get() + live4.get().length }
 
-        assertThat(testGraph.isEmpty()).isFalse()
+            assertThat(testGraph.nodeCount).isEqualTo(5)
 
-        live4.freeze()
-        assertThat(testGraph.isEmpty()).isFalse()
-        live2.freeze()
-        assertThat(testGraph.isEmpty()).isFalse()
-        live3.freeze()
-        assertThat(testGraph.isEmpty()).isFalse()
-        live1.freeze()
-        assertThat(testGraph.isEmpty()).isFalse()
-        live5.freeze()
-        assertThat(testGraph.isEmpty()).isTrue()
+            live5.freeze()
+            assertThat(testGraph.nodeCount).isEqualTo(4)
+            live4.freeze()
+            assertThat(testGraph.nodeCount).isEqualTo(3)
+            live3.freeze()
+            assertThat(testGraph.nodeCount).isEqualTo(2)
+            live2.freeze()
+            assertThat(testGraph.nodeCount).isEqualTo(1)
+            live1.freeze()
+            assertThat(testGraph.nodeCount).isEqualTo(0)
 
-        assertThat(live3.getSnapshot()).isEqualTo("123true")
-        assertThat(live4.getSnapshot()).isEqualTo("eurt321")
-        assertThat(live5.getSnapshot()).isEqualTo(130)
+            assertThat(live3.getSnapshot()).isEqualTo("123true")
+            assertThat(live4.getSnapshot()).isEqualTo("eurt321")
+            assertThat(live5.getSnapshot()).isEqualTo(130)
+        }
+
+        // observing lives which have all their dependencies frozen are auto-frozen
+        run {
+            val live1 = lively.create(123)
+            val live2 = lively.create(true)
+            val live3 = lively.create { live1.get().toString() + live2.get().toString() }
+            val live4 = lively.create { live3.get().reversed() }
+            val live5 = lively.create { live1.get() + live4.get().length }
+
+            assertThat(testGraph.nodeCount).isEqualTo(5)
+
+            live1.freeze()
+            assertThat(testGraph.nodeCount).isEqualTo(4)
+            live2.freeze()
+            assertThat(testGraph.nodeCount).isEqualTo(0)
+        }
     }
 
     @Test
@@ -426,8 +447,8 @@ class LiveTest {
         val live4 = lively.create { live3.get().reversed() }
         lively.create { live1.get() + live4.get().length }
 
-        assertThat(testGraph.isEmpty()).isFalse()
+        assertThat(testGraph.nodeCount).isEqualTo(5)
         lively.freeze()
-        assertThat(testGraph.isEmpty()).isTrue()
+        assertThat(testGraph.nodeCount).isEqualTo(0)
     }
 }

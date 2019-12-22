@@ -79,18 +79,15 @@ class LivelyTest {
 
         assertThat(str3.getSnapshot()).isEqualTo("12.3")
 
-        assertThat(testGraph.isEmpty()).isFalse()
+        assertThat(testGraph.nodeCount).isEqualTo(3)
         lively2.freeze() // Severs connection between str3 and int1
 
         int1.set(9000)
         assertThat(str3.getSnapshot()).isEqualTo("12.3")
-        assertThat(testGraph.isEmpty()).isFalse()
+        assertThat(testGraph.nodeCount).isEqualTo(1)
 
         lively1.freeze()
-        assertThat(testGraph.isEmpty()).isFalse()
-
-        lively3.freeze()
-        assertThat(testGraph.isEmpty()).isTrue()
+        assertThat(testGraph.nodeCount).isEqualTo(0)
     }
 
     @Test

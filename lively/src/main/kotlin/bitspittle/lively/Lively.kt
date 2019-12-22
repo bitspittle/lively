@@ -17,13 +17,13 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
     }
     internal val scope = LiveScope(graph)
 
-    private val ownedLives = mutableSetOf<MutableLive<*>>()
+    private val lives = mutableSetOf<MutableLive<*>>()
 
     fun freeze() {
         checkValidStateFor("freeze")
 
-        ownedLives.filter { live -> !live.frozen }.forEach { live -> live.freeze() }
-        ownedLives.clear()
+        lives.forEach { live -> live.freeze() }
+        lives.clear()
     }
 
     /**
@@ -32,7 +32,7 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
     fun <T> create(initialValue: T): SourceLive<T> {
         checkValidStateFor("create")
 
-        return SourceLive(this, initialValue).also { ownedLives.add(it) }
+        return SourceLive(this, initialValue).also { lives.add(it) }
     }
 
     /**
@@ -41,7 +41,7 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
     fun <T> create(observe: LiveScope.() -> T): ObservingLive<T> {
         checkValidStateFor("create")
 
-        return ObservingLive(this, observe).also { ownedLives.add(it) }
+        return ObservingLive(this, observe).also { lives.add(it) }
     }
 
     /**
@@ -55,7 +55,7 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
 
         // Create an internal dummy node that only exists to run a side effect when any of its
         // dependencies change.
-        ownedLives.add(ObservingLive(this) { sideEffect() })
+        lives.add(ObservingLive(this) { sideEffect() })
     }
 
     private fun checkValidStateFor(method: String) {

@@ -2,7 +2,6 @@ package bitspittle.lively.graph
 
 import bitspittle.lively.Live
 import bitspittle.lively.Lively
-import bitspittle.lively.MutableLive
 import bitspittle.lively.ObservingLive
 import bitspittle.lively.event.Event
 import bitspittle.lively.event.MutableEvent
@@ -21,14 +20,20 @@ class LiveGraph(private val graphExecutor: Executor) {
     internal val ownedThread = Thread.currentThread()
 
     // Exposed for testing only
-    internal fun isEmpty(): Boolean {
-        return lives.isEmpty()
-                && dependencies.isEmpty()
-                && dependents.isEmpty()
-                && pendingUpdate.isEmpty()
-                && onValueChanged.isEmpty()
-                && onFroze.isEmpty()
-    }
+    internal val nodeCount: Int
+        get() {
+            return lives.size.also {
+                if (lives.isEmpty()) {
+                    assert(
+                        dependencies.isEmpty()
+                                && dependents.isEmpty()
+                                && pendingUpdate.isEmpty()
+                                && onValueChanged.isEmpty()
+                                && onFroze.isEmpty()
+                    )
+                }
+            }
+        }
 
     private val lives = mutableSetOf<Live<*>>()
     private val dependencies = mutableMapOf<Live<*>, MutableList<Live<*>>>()
@@ -85,12 +90,8 @@ class LiveGraph(private val graphExecutor: Executor) {
                 }
             }
             clear()
-
             if (deps.isNotEmpty()) {
                 addAll(deps)
-            }
-            else {
-                dependencies.remove(live)
             }
         }
 
@@ -100,6 +101,13 @@ class LiveGraph(private val graphExecutor: Executor) {
                     add(live)
                 }
             }
+        }
+
+        if (deps.isEmpty()) {
+            // Once an observing live value has no more dependencies, it will never change, so
+            // just freeze it. Calling `ObservingLive#freeze` instead of `freeze` directly will
+            // prevent infinite recursion.
+            live.asObservingLive().freeze()
         }
     }
 
@@ -114,7 +122,9 @@ class LiveGraph(private val graphExecutor: Executor) {
             dependencies.getValue(dep).apply {
                 remove(live)
                 if (isEmpty()) {
-                    dependencies.remove(dep)
+                    // If our dependent no longer has any dependencies, then it will never change
+                    // either!
+                    dep.asObservingLive().freeze()
                 }
             }
         }
@@ -145,13 +155,19 @@ class LiveGraph(private val graphExecutor: Executor) {
             dependents[live]?.toMutableList()?.forEach { dependent ->
                 if (pendingUpdate.add(dependent)) {
                     graphExecutor.submit {
-                        // We know this is an observing live since it has a dependency
-                        @Suppress("UNCHECKED_CAST")
-                        (dependent as ObservingLive<T>).update()
+                        dependent.asObservingLive().update()
                         pendingUpdate.remove(dependent)
                     }
                 }
             }
         }
+    }
+
+    /**
+     * Helper function for casting [Live] instances we KNOW depend on other [Live]s.
+     */
+    private fun <T> Live<T>.asObservingLive(): ObservingLive<T> {
+        assert (dependencies.contains(this))
+        return this as ObservingLive<T>
     }
 }
