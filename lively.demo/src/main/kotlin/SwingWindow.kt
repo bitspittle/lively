@@ -19,6 +19,7 @@ class SwingWindow(private val title: String) {
         frame.defaultCloseOperation = WindowConstants.EXIT_ON_CLOSE
         frame.pack()
         frame.setLocationRelativeTo(null)
+        frame.isResizable = false
         frame.isVisible = true
         frame.addWindowListener(object : WindowAdapter() {
             override fun windowClosing(e: WindowEvent) {

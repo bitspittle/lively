@@ -48,7 +48,7 @@ class AnyCheckedDemo {
     init {
         val form = Form()
 
-        // Declare UI relationships lively
+        // Declare UI relationships with lively
         val lively = Lively()
         val liveSelectedValues = listOf(
             lively.wrapSelected(form.checkBox1),
