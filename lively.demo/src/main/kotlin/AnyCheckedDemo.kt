@@ -4,8 +4,6 @@ import bitspittle.lively.swing.wrapSelected
 import bitspittle.lively.swing.wrapText
 import java.awt.BorderLayout
 import java.awt.FlowLayout
-import java.awt.event.WindowAdapter
-import java.awt.event.WindowEvent
 import javax.swing.*
 
 fun main() {
@@ -16,61 +14,56 @@ fun main() {
 }
 
 class AnyCheckedDemo {
-    private val lively = Lively()
-
-    init {
-        // Initialize form
+    private class Form : SwingForm {
+        override val root = JPanel(BorderLayout())
         val checkBox1 = JCheckBox()
         val checkBox2 = JCheckBox()
         val checkBox3 = JCheckBox()
         val checkBox4 = JCheckBox()
-        val checkBoxGroup = JPanel(FlowLayout()).apply {
-            add(checkBox1)
-            add(checkBox2)
-            add(checkBox3)
-            add(checkBox4)
-        }
-
-        val questionLabel = JLabel("Any checked? ")
         val yesNoLabel = JLabel()
-        val labelGroup = JPanel(FlowLayout()).apply {
-            add(questionLabel)
-            add(yesNoLabel)
-        }
 
-        val vGroup = JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            add(checkBoxGroup)
-            add(labelGroup)
-        }
+        init {
+            val checkBoxGroup = JPanel(FlowLayout()).apply {
+                add(checkBox1)
+                add(checkBox2)
+                add(checkBox3)
+                add(checkBox4)
+            }
+            val questionLabel = JLabel("Any checked? ")
+            val labelGroup = JPanel(FlowLayout()).apply {
+                add(questionLabel)
+                add(yesNoLabel)
+            }
 
-        val root = JPanel(BorderLayout()).apply {
-            add(vGroup)
-        }
+            val vGroup = JPanel().apply {
+                layout = BoxLayout(this, BoxLayout.Y_AXIS)
+                add(checkBoxGroup)
+                add(labelGroup)
+            }
 
-        // Hook up lively
+            root.add(vGroup)
+        }
+    }
+
+    init {
+        val form = Form()
+
+        // Declare UI relationships lively
+        val lively = Lively()
         val liveSelectedValues = listOf(
-            lively.wrapSelected(checkBox1),
-            lively.wrapSelected(checkBox2),
-            lively.wrapSelected(checkBox3),
-            lively.wrapSelected(checkBox4)
+            lively.wrapSelected(form.checkBox1),
+            lively.wrapSelected(form.checkBox2),
+            lively.wrapSelected(form.checkBox3),
+            lively.wrapSelected(form.checkBox4)
         )
 
-        lively.wrapText(yesNoLabel) {
+        lively.wrapText(form.yesNoLabel) {
             if (liveSelectedValues.any { it.get() }) "Yes" else "No"
         }
 
-        // Show window
-        val frame = JFrame(AnyCheckedDemo::class.java.simpleName)
-        frame.contentPane = root
-        frame.defaultCloseOperation = WindowConstants.EXIT_ON_CLOSE
-        frame.pack()
-        frame.setLocationRelativeTo(null)
-        frame.isVisible = true
-        frame.addWindowListener(object : WindowAdapter() {
-            override fun windowClosing(e: WindowEvent?) {
-                lively.freeze()
-            }
-        })
+        // Show the demo
+        val window = SwingWindow(AnyCheckedDemo::class.java.simpleName)
+        window.show(form)
+        window.onClosed += { lively.freeze() }
     }
 }
