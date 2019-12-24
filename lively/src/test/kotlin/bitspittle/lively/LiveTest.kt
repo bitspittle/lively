@@ -315,66 +315,6 @@ class LiveTest {
     }
 
     @Test
-    fun twoLivesCanBeTwoWayBoundViaListeners() {
-        // TODO: Actually move an API like this into Lively?
-        fun <T1, T2> bind(
-            live1: SourceLive<T1>,
-            live2: SourceLive<T2>,
-            convert1to2: (T1) -> T2?,
-            convert2to1: (T2) -> T1?
-        ) {
-            live1.onValueChanged += { value1 ->
-                if (live2.frozen) {
-                    removeThisListener()
-                } else {
-                    convert1to2(value1)?.let { live2.set(it) }
-                }
-            }
-            live2.onValueChanged += { value2 ->
-                if (live1.frozen) {
-                    removeThisListener()
-                } else {
-                    convert2to1(value2)?.let { live1.set(it) }
-                }
-            }
-            convert2to1(live2.getSnapshot())?.let { live1.set(it) }
-        }
-
-        val lively = Lively(LiveGraph(RunImmediatelyExecutor()))
-
-        val liveInt = lively.createInt(123)
-        val liveStr = lively.createString()
-        val inSync = lively.create { liveInt.get().toString() == liveStr.get() }
-        bind(liveStr, liveInt, { strVal -> strVal.toIntOrNull() }, { intVal -> intVal.toString() })
-
-        assertThat(liveInt.getSnapshot()).isEqualTo(123)
-        assertThat(liveStr.getSnapshot()).isEqualTo("123")
-        assertThat(inSync.getSnapshot()).isTrue()
-
-        liveInt.set(987)
-        assertThat(liveStr.getSnapshot()).isEqualTo("987")
-        assertThat(inSync.getSnapshot()).isTrue()
-
-        liveStr.set("456")
-        assertThat(liveInt.getSnapshot()).isEqualTo(456)
-        assertThat(inSync.getSnapshot()).isTrue()
-
-        liveStr.set("Uh oh")
-        assertThat(liveInt.getSnapshot()).isEqualTo(456)
-        assertThat(inSync.getSnapshot()).isFalse()
-
-        liveStr.set("999")
-        assertThat(liveInt.getSnapshot()).isEqualTo(999)
-        assertThat(inSync.getSnapshot()).isTrue()
-
-        liveStr.freeze()
-        liveInt.set(0)
-
-        assertThat(liveStr.getSnapshot()).isEqualTo("999")
-        assertThat(liveInt.getSnapshot()).isEqualTo(0)
-    }
-
-    @Test
     fun canCreateSideEffectsViaLivelyListen() {
         val lively = Lively(testGraph)
         val liveInt = lively.create(123)
