@@ -12,6 +12,7 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
                 """
                     To use Lively, you must first initialize `Lively.executor` in your codebase.
                     For example: `Lively.executor = RunImmediatelyExecutor()`
+                    Please see the "Lively Executor" section in the README for more information.
                 """.trimIndent())
     }
 
