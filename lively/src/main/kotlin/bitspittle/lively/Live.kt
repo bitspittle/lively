@@ -163,7 +163,8 @@ private class LiveImpl<T>(
 class ObservingLive<T> internal constructor(
     graph: LiveGraph,
     private val scope: LiveScope,
-    private val observe: LiveScope.() -> T) : FreezableLive<T> {
+    private val observe: LiveScope.() -> T)
+    : FreezableLive<T> {
 
     private lateinit var impl: LiveImpl<T>
     init {
@@ -174,9 +175,7 @@ class ObservingLive<T> internal constructor(
 
     internal fun update() {
         impl.checkValidStateFor("update")
-        scope.recordDependencies(this) {
-            impl.setDirectly(observe())
-        }
+        impl.setDirectly(scope.recordDependenciesAndReturn(this) { observe() })
     }
 
     override val onValueChanged get() = impl.onValueChanged

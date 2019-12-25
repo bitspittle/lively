@@ -54,14 +54,25 @@ class LiveScope internal constructor(private val graph: LiveGraph) {
         return getSnapshot()
     }
 
-    internal fun recordDependencies(live: Live<*>, block: LiveScope.() -> Unit) {
+    internal fun <T> recordDependenciesAndReturn(live: Live<T>, block: LiveScope.() -> T): T {
         recordedDepsStack.add(mutableSetOf())
         try {
-            block()
+            val result = block()
             graph.setDependencies(live, recordedDepsStack.last())
+
+            return result
         }
         finally {
             recordedDepsStack.removeAt(recordedDepsStack.lastIndex)
+        }
+    }
+
+    internal fun <T> recordDependencies(live: Live<T>, block: LiveScope.() -> Unit) {
+        recordDependenciesAndReturn(live) {
+            block()
+            // We don't care about the return value but we have to return something so we can delegate to
+            // the other record method.
+            live.getSnapshot()
         }
     }
 }

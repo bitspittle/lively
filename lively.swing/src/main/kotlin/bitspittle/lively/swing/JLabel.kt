@@ -13,7 +13,7 @@ private fun JLabel.setTextIfDifferent(newText: String) {
     }
 }
 
-fun Lively.wrapSelected(label: JLabel): SourceLive<String> {
+fun Lively.wrapText(label: JLabel): SourceLive<String> {
     val liveText = create(label.text)
     val textListener = PropertyChangeListener { liveText.set(label.text) }
     label.addPropertyChangeListener("text", textListener)

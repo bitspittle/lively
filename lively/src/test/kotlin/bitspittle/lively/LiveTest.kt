@@ -266,55 +266,6 @@ class LiveTest {
     }
 
     @Test
-    fun liveCanWrapOtherValueTypes() {
-        val lively = Lively(testGraph)
-
-        // A UI label class looks something like this...
-        class FakeLabel {
-            val listeners = mutableListOf<(FakeLabel) -> Unit>()
-            var text: String = ""
-                set(value) {
-                    if (value != field) {
-                        field = value
-                        listeners.forEach { it(this) }
-                    }
-                }
-        }
-
-        fun wrapLabel(label: FakeLabel): SourceLive<String> {
-            val liveLabel = lively.create(label.text)
-            val listener: (FakeLabel) -> Unit = { sender -> liveLabel.set(sender.text) }
-            label.listeners.add(listener)
-            liveLabel.onValueChanged += { text -> label.text = text }
-            liveLabel.onFroze += { label.listeners.remove(listener) }
-
-            return liveLabel
-        }
-
-        val sourceLabel = FakeLabel()
-        sourceLabel.text = "Initial text"
-
-        val liveLabel = wrapLabel(sourceLabel)
-        assertThat(sourceLabel.listeners.size).isEqualTo(1)
-        val allCaps = lively.create { liveLabel.get().toUpperCase() }
-        assertThat(liveLabel.getSnapshot()).isEqualTo("Initial text")
-        assertThat(allCaps.getSnapshot()).isEqualTo("INITIAL TEXT")
-
-        sourceLabel.text = "New text"
-        graphExecutor.runRemaining()
-        assertThat(liveLabel.getSnapshot()).isEqualTo("New text")
-        assertThat(allCaps.getSnapshot()).isEqualTo("NEW TEXT")
-
-        liveLabel.set("Updated text")
-        graphExecutor.runRemaining()
-        assertThat(sourceLabel.text).isEqualTo("Updated text")
-        assertThat(allCaps.getSnapshot()).isEqualTo("UPDATED TEXT")
-
-        liveLabel.freeze()
-        assertThat(sourceLabel.listeners.isEmpty())
-    }
-
-    @Test
     fun canCreateSideEffectsViaLivelyListen() {
         val lively = Lively(testGraph)
         val liveInt = lively.create(123)
