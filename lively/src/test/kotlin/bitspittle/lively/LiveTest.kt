@@ -11,11 +11,9 @@ import bitspittle.truthish.assertThrows
 import org.junit.Test
 
 class LiveTest {
-    private val graphExecutor = ManualExecutor()
-    private val testGraph = LiveGraph(graphExecutor)
-
     @Test
     fun setAndGetSnapshotWork() {
+        val testGraph = LiveGraph(RunImmediatelyExecutor())
         val lively = Lively(testGraph)
         val liveInt = lively.create(123)
         assertThat(liveInt.getSnapshot()).isEqualTo(123)
@@ -26,6 +24,9 @@ class LiveTest {
 
     @Test
     fun observeWorks() {
+        val executor = ManualExecutor()
+        val testGraph = LiveGraph(executor)
+
         val lively = Lively(testGraph)
         val liveInt = lively.create(123)
         val liveStr1 = lively.create { liveInt.get().toString() }
@@ -38,22 +39,25 @@ class LiveTest {
         assertThat(liveStr1.getSnapshot()).isEqualTo("123")
         assertThat(liveStr2.getSnapshot()).isEqualTo("321")
 
-        graphExecutor.runNext() // liveStr1 updated first (because it was created first)
+        executor.runNext() // liveStr1 updated first (because it was created first)
         assertThat(liveStr1.getSnapshot()).isEqualTo("456")
         assertThat(liveStr2.getSnapshot()).isEqualTo("321")
 
-        graphExecutor.runNext()
+        executor.runNext()
         assertThat(liveStr1.getSnapshot()).isEqualTo("456")
         assertThat(liveStr2.getSnapshot()).isEqualTo("654")
 
         liveInt.set(789)
-        graphExecutor.runRemaining()
+        executor.runRemaining()
         assertThat(liveStr1.getSnapshot()).isEqualTo("789")
         assertThat(liveStr2.getSnapshot()).isEqualTo("987")
     }
 
     @Test
     fun onValueChangedListenersWorkAsExpected() {
+        val executor = ManualExecutor()
+        val testGraph = LiveGraph(executor)
+
         val lively = Lively(testGraph)
 
         val liveStr = lively.create("987")
@@ -68,7 +72,7 @@ class LiveTest {
 
         liveStr.set("987")
         // Setting to the same value is totally ignored
-        assertThat(graphExecutor.count).isEqualTo(0)
+        assertThat(executor.isEmpty).isTrue()
         assertThat(strChanged).isFalse()
         assertThat(intChanged).isFalse()
 
@@ -76,12 +80,15 @@ class LiveTest {
         assertThat(strChanged).isTrue()
         assertThat(intChanged).isFalse()
 
-        graphExecutor.runRemaining()
+        executor.runRemaining()
         assertThat(intChanged).isTrue()
     }
 
     @Test
     fun dependenciesCanChange() {
+        val executor = ManualExecutor()
+        val testGraph = LiveGraph(executor)
+
         val lively = Lively(testGraph)
 
         val switch = lively.createBool()
@@ -95,23 +102,23 @@ class LiveTest {
         assertThat(finalInt.getSnapshot()).isEqualTo(0)
 
         switch.set(true)
-        graphExecutor.runRemaining()
+        executor.runRemaining()
 
         assertThat(finalInt.getSnapshot()).isEqualTo(1)
 
         // At this point, nothing should depend on `intFalse`
         intFalse.set(-1)
-        assertThat(graphExecutor.count).isEqualTo(0)
+        assertThat(executor.isEmpty).isTrue()
         assertThat(finalInt.getSnapshot()).isEqualTo(1)
 
         switch.set(false)
-        graphExecutor.runRemaining()
+        executor.runRemaining()
         assertThat(finalInt.getSnapshot()).isEqualTo(-1)
     }
 
     @Test
     fun cannotModifyLiveValueAfterFreezing() {
-        val lively = Lively(testGraph)
+        val lively = Lively(LiveGraph(RunImmediatelyExecutor()))
         val liveStr = lively.createString("initial")
 
         var wasFrozen = false
@@ -142,6 +149,9 @@ class LiveTest {
 
     @Test
     fun youCanFreezeAValueBeforeItGetsUpdated() {
+        val executor = ManualExecutor()
+        val testGraph = LiveGraph(executor)
+
         val lively = Lively(testGraph)
 
         // A -> B -> C
@@ -154,13 +164,14 @@ class LiveTest {
         liveStrC.set("new value")
         liveStrA.freeze()
 
-        graphExecutor.runRemaining()
+        executor.runRemaining()
         assertThat(liveStrA.getSnapshot()).isEqualTo("initial value")
     }
 
     @Test
     fun observeBlockCanReferenceFrozenLiveValues() {
-        val lively = Lively(testGraph)
+        val executor = ManualExecutor()
+        val lively = Lively(LiveGraph(executor))
 
         val toFreezeNow = lively.create(1).apply { freeze() }
         val toFreezeLater = lively.create(2)
@@ -172,62 +183,8 @@ class LiveTest {
         toFreezeLater.freeze()
         neverFrozen.set(30)
 
-        graphExecutor.runRemaining()
+        executor.runRemaining()
         assertThat(sum.getSnapshot()).isEqualTo(33)
-    }
-
-    @Test
-    fun updateOnlyPropogatesIfValueChanged() {
-        val lively = Lively(testGraph)
-
-        val switch = lively.create(false)
-
-        val dummyInt1 = lively.create(10)
-        val dummyInt2 = lively.create(10)
-        val middleInt = lively.create { if (switch.get()) dummyInt1.get() else dummyInt2.get() }
-        val finalInt = lively.create { middleInt.get() }
-
-        assertThat(finalInt.getSnapshot()).isEqualTo(10)
-
-        var middleIntChanged = false
-        var finalIntChanged = false
-        middleInt.onValueChanged += { middleIntChanged = true }
-        finalInt.onValueChanged += { finalIntChanged = true }
-
-        switch.set(true)
-        graphExecutor.runRemaining()
-        assertThat(middleIntChanged).isFalse()
-        assertThat(finalIntChanged).isFalse()
-
-        // Sanity check that deps propagate later
-        dummyInt1.set(100)
-        graphExecutor.runRemaining()
-        assertThat(middleIntChanged).isTrue()
-        assertThat(finalIntChanged).isTrue()
-    }
-
-    @Test
-    fun verifyIntermediateValuesAreOnlyUpdatedOnce() {
-        val lively = Lively(testGraph)
-
-        val int1 = lively.create(1)
-        val int2 = lively.create(2)
-        val int3 = lively.create(3)
-        val sum = lively.create { int1.get() + int2.get() + int3.get() }
-
-        var count = 0
-        sum.onValueChanged += { ++count }
-
-        assertThat(count).isEqualTo(0)
-        assertThat(sum.getSnapshot()).isEqualTo(6)
-
-        int1.set(100)
-        int2.set(10)
-        int3.set(1)
-
-        graphExecutor.runRemaining()
-        assertThat(count).isEqualTo(1)
-        assertThat(sum.getSnapshot()).isEqualTo(111)
     }
 
     @Test
@@ -237,7 +194,9 @@ class LiveTest {
         val userJoe = User("Joe", 34)
         val userJane = User("Jane", 29)
 
-        val lively = Lively(testGraph)
+        val executor = ManualExecutor()
+
+        val lively = Lively(LiveGraph(executor))
         val liveUser = lively.create(userJoe)
         val liveDisplay = lively.create { "Name: ${liveUser.get().name}" }
 
@@ -248,12 +207,12 @@ class LiveTest {
         assertThat(nameUpdatedCount).isEqualTo(0)
 
         liveUser.set(userJane)
-        graphExecutor.runRemaining()
+        executor.runRemaining()
         assertThat(liveDisplay.getSnapshot()).isEqualTo("Name: Jane")
         assertThat(nameUpdatedCount).isEqualTo(1)
 
         liveUser.set(userJoe)
-        graphExecutor.runRemaining()
+        executor.runRemaining()
         assertThat(liveDisplay.getSnapshot()).isEqualTo("Name: Joe")
         assertThat(nameUpdatedCount).isEqualTo(2)
 
@@ -262,84 +221,6 @@ class LiveTest {
         assertThat(userJoeCopy).isNotSameAs(userJoe)
 
         liveUser.set(userJoeCopy)
-        assertThat(graphExecutor.count).isEqualTo(0)
-    }
-
-    @Test
-    fun canCreateSideEffectsViaLivelyListen() {
-        val lively = Lively(testGraph)
-        val liveInt = lively.create(123)
-
-        var sideEffectInt = 0
-        lively.listen {
-            sideEffectInt = liveInt.get()
-        }
-
-        assertThat(sideEffectInt).isEqualTo(123)
-
-        liveInt.set(9000)
-        graphExecutor.runRemaining()
-        assertThat(sideEffectInt).isEqualTo(9000)
-    }
-
-    @Test
-    fun freezingShouldRemoveNodesFromTheGraph() {
-        val lively = Lively(testGraph)
-
-        run {
-            val live1 = lively.create(123)
-            val live2 = lively.create(true)
-            val live3 = lively.create { live1.get().toString() + live2.get().toString() }
-            val live4 = lively.create { live3.get().reversed() }
-            val live5 = lively.create { live1.get() + live4.get().length }
-
-            assertThat(testGraph.nodeCount).isEqualTo(5)
-
-            live5.freeze()
-            assertThat(testGraph.nodeCount).isEqualTo(4)
-            live4.freeze()
-            assertThat(testGraph.nodeCount).isEqualTo(3)
-            live3.freeze()
-            assertThat(testGraph.nodeCount).isEqualTo(2)
-            live2.freeze()
-            assertThat(testGraph.nodeCount).isEqualTo(1)
-            live1.freeze()
-            assertThat(testGraph.nodeCount).isEqualTo(0)
-
-            assertThat(live3.getSnapshot()).isEqualTo("123true")
-            assertThat(live4.getSnapshot()).isEqualTo("eurt321")
-            assertThat(live5.getSnapshot()).isEqualTo(130)
-        }
-
-        // observing lives which have all their dependencies frozen are auto-frozen
-        run {
-            val live1 = lively.create(123)
-            val live2 = lively.create(true)
-            val live3 = lively.create { live1.get().toString() + live2.get().toString() }
-            val live4 = lively.create { live3.get().reversed() }
-            lively.create { live1.get() + live4.get().length }
-
-            assertThat(testGraph.nodeCount).isEqualTo(5)
-
-            live1.freeze()
-            assertThat(testGraph.nodeCount).isEqualTo(4)
-            live2.freeze()
-            assertThat(testGraph.nodeCount).isEqualTo(0)
-        }
-    }
-
-    @Test
-    fun freezingCanBeDoneViaLively() {
-        val lively = Lively(testGraph)
-
-        val live1 = lively.create(123)
-        val live2 = lively.create(true)
-        val live3 = lively.create { live1.get().toString() + live2.get().toString() }
-        val live4 = lively.create { live3.get().reversed() }
-        lively.create { live1.get() + live4.get().length }
-
-        assertThat(testGraph.nodeCount).isEqualTo(5)
-        lively.freeze()
-        assertThat(testGraph.nodeCount).isEqualTo(0)
+        assertThat(executor.isEmpty).isTrue()
     }
 }

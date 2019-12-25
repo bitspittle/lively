@@ -104,4 +104,37 @@ class LivelyTest {
 
         assertThrows<IllegalArgumentException> { lively2.create { int1.get() } }
     }
+
+    @Test
+    fun canCreateSideEffectsViaLivelyListen() {
+        val testGraph = LiveGraph(RunImmediatelyExecutor())
+        val lively = Lively(testGraph)
+        val liveInt = lively.create(123)
+
+        var sideEffectInt = 0
+        lively.listen {
+            sideEffectInt = liveInt.get()
+        }
+
+        assertThat(sideEffectInt).isEqualTo(123)
+
+        liveInt.set(9000)
+        assertThat(sideEffectInt).isEqualTo(9000)
+    }
+
+    @Test
+    fun freezingCanBeDoneViaLively() {
+        val testGraph = LiveGraph(RunImmediatelyExecutor())
+        val lively = Lively(testGraph)
+
+        val live1 = lively.create(123)
+        val live2 = lively.create(true)
+        val live3 = lively.create { live1.get().toString() + live2.get().toString() }
+        val live4 = lively.create { live3.get().reversed() }
+        lively.create { live1.get() + live4.get().length }
+
+        assertThat(testGraph.nodeCount).isEqualTo(5)
+        lively.freeze()
+        assertThat(testGraph.nodeCount).isEqualTo(0)
+    }
 }

@@ -41,6 +41,9 @@ class ManualExecutor : Executor {
         enqueued.add(runnable)
     }
 
+    val isEmpty
+        get() = count == 0
+
     val count
         get() = enqueued.size
 
