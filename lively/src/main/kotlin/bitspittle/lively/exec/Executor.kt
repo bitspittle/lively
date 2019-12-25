@@ -51,25 +51,6 @@ class ManualExecutor : Executor {
         next()
     }
 
-    /**
-     * Run until the target [condition] is met.
-     *
-     * It is considered an error if all runnables run and the condition is never met.
-     */
-    fun runUntil(condition: () -> Boolean) {
-        checkNonEmpty()
-
-        var conditionMet = false
-        while (!conditionMet && enqueued.isEmpty()) {
-            runNext()
-            conditionMet = condition()
-        }
-
-        if (!conditionMet) {
-            throw IllegalArgumentException("Condition never met.")
-        }
-    }
-
     fun runRemaining() {
         checkNonEmpty()
 
