@@ -8,8 +8,14 @@ import bitspittle.lively.event.MutableEvent
 import bitspittle.lively.event.MutableUnitEvent
 import bitspittle.lively.event.UnitEvent
 import bitspittle.lively.exec.Executor
+import java.util.*
 
 private val graphThreadLocal = ThreadLocal.withInitial { LiveGraph(Lively.executorFactory()) }
+
+private typealias WeakSet<E> = MutableSet<E>
+private typealias WeakMap<K, V> = MutableMap<K, V>
+
+private fun <E> mutableWeakSetOf(): WeakSet<E> = Collections.newSetFromMap(WeakHashMap<E, Boolean>())
 
 class LiveGraph(private val graphExecutor: Executor) {
     companion object {
@@ -35,13 +41,13 @@ class LiveGraph(private val graphExecutor: Executor) {
             }
         }
 
-    private val lives = mutableSetOf<Live<*>>()
-    private val dependencies = mutableMapOf<Live<*>, MutableList<Live<*>>>()
-    private val dependents = mutableMapOf<Live<*>, MutableList<Live<*>>>()
+    private val lives: WeakSet<Live<*>> = mutableWeakSetOf()
+    private val dependencies: WeakMap<Live<*>, WeakSet<Live<*>>> = WeakHashMap()
+    private val dependents: WeakMap<Live<*>, WeakSet<Live<*>>> = WeakHashMap()
     private val pendingUpdate = mutableSetOf<Live<*>>()
 
-    private val onValueChanged = mutableMapOf<Live<*>, MutableEvent<*>>()
-    private val onFroze = mutableMapOf<Live<*>, MutableUnitEvent>()
+    private val onValueChanged: MutableMap<Live<*>, MutableEvent<*>> = WeakHashMap()
+    private val onFroze: MutableMap<Live<*>, MutableUnitEvent> = WeakHashMap()
 
     internal fun add(live: Live<*>) {
         if (lives.contains(live)) {
@@ -78,7 +84,7 @@ class LiveGraph(private val graphExecutor: Executor) {
             }
         }
 
-        dependencies.getOrPut(live) { mutableListOf() }.apply {
+        dependencies.getOrPut(live) { mutableWeakSetOf() }.apply {
             forEach { oldDep ->
                 if (!deps.contains(oldDep)) {
                     dependents.getValue(oldDep).apply {
@@ -96,7 +102,7 @@ class LiveGraph(private val graphExecutor: Executor) {
         }
 
         deps.forEach { dep ->
-            dependents.getOrPut(dep) { mutableListOf() }.apply {
+            dependents.getOrPut(dep) { mutableWeakSetOf() }.apply {
                 if (!contains(live)) {
                     add(live)
                 }

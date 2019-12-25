@@ -7,6 +7,7 @@ import bitspittle.lively.event.StubEvent
 import bitspittle.lively.event.StubUnitEvent
 import bitspittle.lively.event.UnitEvent
 import bitspittle.lively.extensions.expectCurrent
+import bitspittle.lively.graph.LiveGraph
 
 /**
  * Class which represents a live value (that is, expected to change over time, possibly with other
@@ -74,21 +75,26 @@ interface SettableLive<T> : Live<T> {
 /**
  * Shared implementation logic for all [Live] instances.
  */
-private class LiveImpl<T>(private val lively: Lively, private val target: Live<T>, private var value: T) {
+private class LiveImpl<T>(
+    private val graph: LiveGraph,
+    private val scope: LiveScope,
+    private val target: Live<T>,
+    private var value: T) {
+
     init {
-        lively.graph.add(target)
+        graph.add(target)
     }
 
     val onValueChanged: Event<T>
         get() {
             checkValidStateFor("onValueChanged", frozenAware = true)
-            return if (frozen) StubEvent.typed() else { lively.graph.onValueChanged(target) }
+            return if (frozen) StubEvent.typed() else { graph.onValueChanged(target) }
         }
 
     val onFroze: UnitEvent
         get() {
             checkValidStateFor("onFroze", frozenAware = true)
-            return if (frozen) StubUnitEvent else lively.graph.onFroze(target)
+            return if (frozen) StubUnitEvent else graph.onFroze(target)
         }
 
     var frozen = false
@@ -108,7 +114,7 @@ private class LiveImpl<T>(private val lively: Lively, private val target: Live<T
         checkValidStateFor("freeze", frozenAware = true)
         if (!frozen) {
             frozen = true
-            lively.graph.freeze(target)
+            graph.freeze(target)
         }
     }
 
@@ -119,7 +125,7 @@ private class LiveImpl<T>(private val lively: Lively, private val target: Live<T
         assert (!frozen)
         val valueChanged = this.value != value
         this.value = value
-        lively.graph.notifyUpdated(target, valueChanged)
+        graph.notifyUpdated(target, valueChanged)
     }
 
     /**
@@ -136,11 +142,11 @@ private class LiveImpl<T>(private val lively: Lively, private val target: Live<T
             throw IllegalStateException("Attempted to call `$method` on frozen live value: $target")
         }
 
-        lively.graph.ownedThread.expectCurrent {
+        graph.ownedThread.expectCurrent {
             "Attempting to call `$method` on $this using a thread it isn't associated with."
         }
 
-        if (lively.scope.isRecording) {
+        if (scope.isRecording) {
             throw IllegalStateException("Attempted to call `$method` inside an observe block on: $target")
         }
     }
@@ -155,19 +161,20 @@ private class LiveImpl<T>(private val lively: Lively, private val target: Live<T
  * listening to other live values.
  */
 class ObservingLive<T> internal constructor(
-    private val lively: Lively,
+    graph: LiveGraph,
+    private val scope: LiveScope,
     private val observe: LiveScope.() -> T) : FreezableLive<T> {
 
     private lateinit var impl: LiveImpl<T>
     init {
-        lively.scope.recordDependencies(this) {
-            impl = LiveImpl(lively, this@ObservingLive, observe())
+        scope.recordDependencies(this) {
+            impl = LiveImpl(graph, scope, this@ObservingLive, observe())
         }
     }
 
     internal fun update() {
         impl.checkValidStateFor("update")
-        lively.scope.recordDependencies(this) {
+        scope.recordDependencies(this) {
             impl.setDirectly(observe())
         }
     }
@@ -184,8 +191,12 @@ class ObservingLive<T> internal constructor(
 /**
  * A mutable [Live] that represents a source value which can be changed by calling [set].
  */
-class SourceLive<T> internal constructor(lively: Lively, initialValue: T) : FreezableLive<T>, SettableLive<T> {
-    private var impl: LiveImpl<T> = LiveImpl(lively, this, initialValue)
+class SourceLive<T> internal constructor(
+    graph: LiveGraph,
+    scope: LiveScope,
+    initialValue: T)
+    : FreezableLive<T>, SettableLive<T> {
+    private var impl: LiveImpl<T> = LiveImpl(graph, scope, this, initialValue)
 
     override val onValueChanged get() = impl.onValueChanged
     override val onFroze get() = impl.onFroze

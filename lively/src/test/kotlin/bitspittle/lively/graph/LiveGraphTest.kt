@@ -1,9 +1,13 @@
 package bitspittle.lively.graph
 
+import bitspittle.lively.Live
 import bitspittle.lively.Lively
 import bitspittle.lively.exec.Executor
+import bitspittle.lively.exec.RunImmediatelyExecutor
+import bitspittle.lively.extensions.createInt
 import bitspittle.truthish.assertThat
 import org.junit.Test
+import java.lang.ref.WeakReference
 import kotlin.IllegalStateException
 
 class LiveGraphTest {
@@ -53,5 +57,44 @@ class LiveGraphTest {
         liveInt1.set(200)
         assertThat(exceptionThrownByExecutorThread).isTrue()
         assertThat(liveInt2.getSnapshot()).isEqualTo(246) // Invalid executor didn't affect state
+    }
+
+    @Test
+    fun graphCleanedUpIfLiveValuesCanBeGarbageCollected() {
+        lateinit var weakLively: WeakReference<Lively>
+        lateinit var testGraph: LiveGraph
+
+        // While not-null, this reference keeps live liveDst alive which keeps liveSrc alive too
+        @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+        var liveDstReference: Live<Int>? = null
+
+        Thread {
+            testGraph = LiveGraph(RunImmediatelyExecutor())
+            val lively = Lively(testGraph)
+            @Suppress("UNUSED_VARIABLE") // Var created for readability
+            val liveOrphan = lively.createInt()
+            val liveSrc = lively.createInt()
+            val liveDst = lively.create { liveSrc.get() }
+
+            assertThat(testGraph.nodeCount).isEqualTo(3)
+            weakLively = WeakReference(lively)
+            liveDstReference = liveDst
+        }.apply {
+            start()
+            join()
+        }
+
+        assertThat(testGraph.nodeCount).isEqualTo(3)
+        while (weakLively.get() != null) {
+            System.gc()
+            Thread.sleep(10)
+        }
+        assertThat(testGraph.nodeCount).isEqualTo(2)
+
+        liveDstReference = null // Removing this allows both liveSrc and liveDst to be collected
+        while (testGraph.nodeCount > 0) {
+            System.gc()
+            Thread.sleep(10)
+        }
     }
 }
