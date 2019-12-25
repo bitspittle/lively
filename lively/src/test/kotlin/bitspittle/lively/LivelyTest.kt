@@ -22,7 +22,7 @@ class LivelyTest {
     }
 
     @Test
-    fun liveValuesCannotCrossThreadBoundaries() {
+    fun liveMutationsCannotCrossThreadBoundaries() {
         lateinit var lively: Lively
         lateinit var liveInt: SourceLive<Int>
         val latchValuesSet = CountDownLatch(1)
@@ -39,7 +39,6 @@ class LivelyTest {
             },
             Thread {
                 latchValuesSet.await()
-                assertThrows<IllegalStateException> { liveInt.getSnapshot() }
                 assertThrows<IllegalStateException> { liveInt.set(999) }
                 assertThrows<IllegalStateException> { liveInt.freeze() }
                 assertThrows<IllegalStateException> { liveInt.onValueChanged += {} }
@@ -49,6 +48,10 @@ class LivelyTest {
                 assertThrows<IllegalStateException> { lively.create { false } }
                 assertThrows<IllegalStateException> { lively.listen { } }
                 assertThrows<IllegalStateException> { lively.freeze() }
+
+                // Querying the live value is allowed
+                assertThat(liveInt.getSnapshot()).isEqualTo(123)
+                assertThat(liveInt.frozen).isFalse()
 
                 latchThread2Finished.countDown()
             }

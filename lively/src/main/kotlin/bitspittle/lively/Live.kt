@@ -81,20 +81,19 @@ private class LiveImpl<T>(private val lively: Lively, private val target: Live<T
 
     val onValueChanged: Event<T>
         get() {
-            checkValidStateFor("onValueChanged", true, frozenAware = true)
+            checkValidStateFor("onValueChanged", frozenAware = true)
             return if (frozen) StubEvent.typed() else { lively.graph.onValueChanged(target) }
         }
 
     val onFroze: UnitEvent
         get() {
-            checkValidStateFor("onFroze", true, frozenAware = true)
+            checkValidStateFor("onFroze", frozenAware = true)
             return if (frozen) StubUnitEvent else lively.graph.onFroze(target)
         }
 
     var frozen = false
 
     fun getSnapshot(): T {
-        checkValidStateFor("getSnapshot", false)
         return value
     }
 
@@ -106,7 +105,7 @@ private class LiveImpl<T>(private val lively: Lively, private val target: Live<T
      * -- any attempt to mutate the object will result in an exception.
      */
     fun freeze() {
-        checkValidStateFor("freeze", true, frozenAware = true)
+        checkValidStateFor("freeze", frozenAware = true)
         if (!frozen) {
             frozen = true
             lively.graph.freeze(target)
@@ -123,8 +122,17 @@ private class LiveImpl<T>(private val lively: Lively, private val target: Live<T
         lively.graph.notifyUpdated(target, valueChanged)
     }
 
-    fun checkValidStateFor(method: String, mutating: Boolean, frozenAware: Boolean = false) {
-        if (mutating && !frozenAware && frozen) {
+    /**
+     * Verify that the current method is in an acceptable state to be called.
+     *
+     * This should be a method that mutates the Live value somehow, meaning it shouldn't be called
+     * inside an observe block.
+     *
+     * @param frozenAware If true, this method can safely be called even if the live value has
+     *   already been frozen.
+     */
+    fun checkValidStateFor(method: String, frozenAware: Boolean = false) {
+        if (!frozenAware && frozen) {
             throw IllegalStateException("Attempted to call `$method` on frozen live value: $target")
         }
 
@@ -132,7 +140,7 @@ private class LiveImpl<T>(private val lively: Lively, private val target: Live<T
             "Attempting to call `$method` on $this using a thread it isn't associated with."
         }
 
-        if (mutating && lively.scope.isRecording) {
+        if (lively.scope.isRecording) {
             throw IllegalStateException("Attempted to call `$method` inside an observe block on: $target")
         }
     }
@@ -158,6 +166,7 @@ class ObservingLive<T> internal constructor(
     }
 
     internal fun update() {
+        impl.checkValidStateFor("update")
         lively.scope.recordDependencies(this) {
             impl.setDirectly(observe())
         }
@@ -186,7 +195,7 @@ class SourceLive<T> internal constructor(lively: Lively, initialValue: T) : Free
     override fun freeze() = impl.freeze()
 
     override fun set(value: T) {
-        impl.checkValidStateFor("set", true)
+        impl.checkValidStateFor("set")
         impl.setDirectly(value)
     }
 }
