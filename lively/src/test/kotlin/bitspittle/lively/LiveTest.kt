@@ -39,16 +39,12 @@ class LiveTest {
         assertThat(liveStr1.getSnapshot()).isEqualTo("123")
         assertThat(liveStr2.getSnapshot()).isEqualTo("321")
 
-        executor.runNext() // liveStr1 updated first (because it was created first)
-        assertThat(liveStr1.getSnapshot()).isEqualTo("456")
-        assertThat(liveStr2.getSnapshot()).isEqualTo("321")
-
         executor.runNext()
         assertThat(liveStr1.getSnapshot()).isEqualTo("456")
         assertThat(liveStr2.getSnapshot()).isEqualTo("654")
 
         liveInt.set(789)
-        executor.runRemaining()
+        executor.runNext()
         assertThat(liveStr1.getSnapshot()).isEqualTo("789")
         assertThat(liveStr2.getSnapshot()).isEqualTo("987")
     }

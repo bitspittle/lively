@@ -121,11 +121,11 @@ private class LiveImpl<T>(
     /**
      * An inner set method, not to be exposed to normal callers.
      */
-    fun setDirectly(value: T) {
+    fun setDirectly(value: T): Boolean {
         assert (!frozen)
         val valueChanged = this.value != value
         this.value = value
-        graph.notifyUpdated(target, valueChanged)
+        return valueChanged
     }
 
     /**
@@ -173,9 +173,9 @@ class ObservingLive<T> internal constructor(
         }
     }
 
-    internal fun update() {
+    internal fun update(): Boolean {
         impl.checkValidStateFor("update")
-        impl.setDirectly(scope.recordDependenciesAndReturn(this) { observe() })
+        return impl.setDirectly(scope.recordDependenciesAndReturn(this) { observe() })
     }
 
     override val onValueChanged get() = impl.onValueChanged
@@ -191,7 +191,7 @@ class ObservingLive<T> internal constructor(
  * A mutable [Live] that represents a source value which can be changed by calling [set].
  */
 class SourceLive<T> internal constructor(
-    graph: LiveGraph,
+    private val graph: LiveGraph,
     scope: LiveScope,
     initialValue: T)
     : FreezableLive<T>, SettableLive<T> {
@@ -206,6 +206,8 @@ class SourceLive<T> internal constructor(
 
     override fun set(value: T) {
         impl.checkValidStateFor("set")
-        impl.setDirectly(value)
+        if (impl.setDirectly(value)) {
+            graph.notifyUpdated(this)
+        }
     }
 }

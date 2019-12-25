@@ -3,12 +3,14 @@ package bitspittle.lively.graph
 import bitspittle.lively.Live
 import bitspittle.lively.Lively
 import bitspittle.lively.ObservingLive
+import bitspittle.lively.SourceLive
 import bitspittle.lively.event.Event
 import bitspittle.lively.event.MutableEvent
 import bitspittle.lively.event.MutableUnitEvent
 import bitspittle.lively.event.UnitEvent
 import bitspittle.lively.exec.Executor
 import java.util.*
+import kotlin.collections.LinkedHashSet
 
 private val graphThreadLocal = ThreadLocal.withInitial { LiveGraph(Lively.executorFactory()) }
 
@@ -33,7 +35,7 @@ class LiveGraph(private val graphExecutor: Executor) {
                     assert(
                         dependencies.isEmpty()
                                 && dependents.isEmpty()
-                                && pendingUpdate.isEmpty()
+                                && pendingUpdates.isEmpty()
                                 && onValueChanged.isEmpty()
                                 && onFroze.isEmpty()
                     )
@@ -44,10 +46,18 @@ class LiveGraph(private val graphExecutor: Executor) {
     private val lives: WeakSet<Live<*>> = mutableWeakSetOf()
     private val dependencies: WeakMap<Live<*>, WeakSet<Live<*>>> = WeakHashMap()
     private val dependents: WeakMap<Live<*>, WeakSet<Live<*>>> = WeakHashMap()
-    private val pendingUpdate = mutableSetOf<Live<*>>()
 
     private val onValueChanged: MutableMap<Live<*>, MutableEvent<*>> = WeakHashMap()
     private val onFroze: MutableMap<Live<*>, MutableUnitEvent> = WeakHashMap()
+
+    /**
+     * Used to aggregate all updates across multiple calls to [notifyUpdated].
+     *
+     * Update order matters! So we use a LinkedHashSet.
+     *
+     * Value will be cleared once updates are finished processing.
+     */
+    private val pendingUpdates: MutableSet<ObservingLive<*>> = LinkedHashSet()
 
     internal fun add(live: Live<*>) {
         if (lives.contains(live)) {
@@ -137,7 +147,6 @@ class LiveGraph(private val graphExecutor: Executor) {
         dependencies.remove(live)
         dependents.remove(live)
         lives.remove(live)
-        pendingUpdate.remove(live)
     }
 
     @Suppress("UNCHECKED_CAST") // Live<T> always maps to MutableEvent<T>
@@ -148,25 +157,55 @@ class LiveGraph(private val graphExecutor: Executor) {
         onFroze.computeIfAbsent(live) { MutableUnitEvent() }
 
     /**
-     * This method should only be called by a [Live] *after* it has updated its snapshot.
+     * This method should only be called by a [SourceLive] *after* a user changed its
+     * value.
      */
-    internal fun <T> notifyUpdated(live: Live<T>, valueChanged: Boolean) {
-        pendingUpdate.remove(live)
+    internal fun <T> notifyUpdated(live: SourceLive<T>) {
+        fireOnValueChanged(live)
+        dependents[live]?.let { initialDeps ->
+            val toProcess = initialDeps.toMutableList()
 
-        if (valueChanged) {
-            @Suppress("UNCHECKED_CAST") // Map only pairs Live<T> with LiveListener<T>
-            (onValueChanged[live] as? MutableEvent<T>)?.invoke(live.getSnapshot())
+            var i = 0
+            while (i < toProcess.size) {
+                val currLive = toProcess[i++].asObservingLive()
+                // If we encounter a node already in the pending updates list, move it to the
+                // back. This is useful for exmaple if:
+                // A <------------┐
+                // B <- C <- D <- E
+                // and you change A then B, the update order should be
+                //  A, B, C, D, E
+                // not
+                //  A, E, B, C, D
+                pendingUpdates.remove(currLive)
+                pendingUpdates.add(currLive)
+                dependents[currLive]?.let { moreDeps -> toProcess.addAll(moreDeps) }
+            }
 
-            // To avoid re-entry issues, duplicate the collection before iterating over it
-            dependents[live]?.toMutableList()?.forEach { dependent ->
-                if (pendingUpdate.add(dependent)) {
-                    graphExecutor.submit {
-                        dependent.asObservingLive().update()
-                        pendingUpdate.remove(dependent)
-                    }
+            // Prevent future calls to `notifyUpdated` from adding duplicate update requests
+            graphExecutor.submit {
+                try {
+                    // A live might have gotten frozen since we submitted this callback, so skip
+                    // them as they are no longer updatable.
+                    pendingUpdates.asSequence()
+                        .filter { currLive -> !currLive.frozen }
+                        .forEach { currLive ->
+                            if (currLive.update()) {
+                                fireOnValueChanged(currLive)
+                            }
+                        }
+                }
+                finally {
+                    // currLive.update calls user code, so if it throws, it will break further
+                    // updates, but at least we won't leak memory
+                    pendingUpdates.clear()
                 }
             }
         }
+    }
+
+    private fun <T> fireOnValueChanged(live: Live<T>) {
+        @Suppress("UNCHECKED_CAST") // Map only pairs Live<T> with LiveListener<T>
+        (onValueChanged[live] as? MutableEvent<T>)?.invoke(live.getSnapshot())
     }
 
     /**

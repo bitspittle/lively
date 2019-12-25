@@ -7,6 +7,7 @@ import bitspittle.lively.exec.ManualExecutor
 import bitspittle.lively.exec.RunImmediatelyExecutor
 import bitspittle.lively.extensions.createInt
 import bitspittle.truthish.assertThat
+import bitspittle.truthish.assertThrows
 import org.junit.Test
 import java.lang.ref.WeakReference
 import kotlin.IllegalStateException
@@ -132,7 +133,7 @@ class LiveGraphTest {
     }
 
     @Test
-    fun verifyMultipleObservedUpdatesAreBatchedIntoASingleObserveCall() {
+    fun verifyMultipleUpdatesAreBatchedIntoASingleObserveCall() {
         val executor = ManualExecutor()
         val testGraph = LiveGraph(executor)
         val lively = Lively(testGraph)
@@ -155,6 +156,88 @@ class LiveGraphTest {
         executor.runRemaining()
         assertThat(count).isEqualTo(1)
         assertThat(sum.getSnapshot()).isEqualTo(111)
+    }
+
+    @Test
+    fun verifyMultipleUpdatesPropogateCorrectly() {
+        // With this graph:
+        //
+        // A ←┬- D ← E ← G
+        // B ←┘          |
+        // C ←------ F ←-┘
+        //
+        // If we're not careful, and user changes A', B', and C' on a single frame...
+        // A' → D'
+        // D' → E'
+        // E' → G'
+        // B' → D' // ignored, D' is already pending
+        // C' → F'
+        // F' → G' // ignored, G' is already pending
+        //
+        // We want to make sure that G' gets F's changes, even though F' is later on the
+        // update order due to C changing later.
+
+        val executor = ManualExecutor()
+        val testGraph = LiveGraph(executor)
+        val lively = Lively(testGraph)
+
+        val intA = lively.createInt(1)
+        val intB = lively.createInt(10)
+        val intC = lively.createInt(100)
+        val intD = lively.create { intA.get() + intB.get() }
+        val intE = lively.create { intD.get() }
+        val intF = lively.create { intC.get() }
+        val intG = lively.create { intE.get() + intF.get() }
+
+        var updatedCount = 0
+        intG.onValueChanged += { ++updatedCount }
+
+        assertThat(intG.getSnapshot()).isEqualTo(111)
+        assertThat(updatedCount).isEqualTo(0)
+
+        intA.set(2)
+        intB.set(20)
+        intC.set(200)
+        executor.runRemaining()
+
+        assertThat(intG.getSnapshot()).isEqualTo(222)
+        assertThat(updatedCount).isEqualTo(1)
+    }
+
+    @Test
+    fun dependenciesUpdatedInAnOrderThatPreventsRedundantUpdates() {
+        val lively = Lively(LiveGraph(RunImmediatelyExecutor()))
+
+        // With this graph:
+        //
+        // A ← B ←-----┐
+        // ↑           |
+        // └-- C ← D ← E
+        //
+        // If we're not careful,
+        // A' → B' + C'
+        // B' → E'  // updated once
+        // C' → D'
+        // D' → E'' // updated twice!
+        //
+        // Instead, E should wait for both branches to propagate before getting updated itself
+
+        val intA = lively.create(1)
+        val intB = lively.create { intA.get() }
+        val intC = lively.create { intA.get() }
+        val intD = lively.create { intC.get() }
+        val intE = lively.create { intB.get() + intD.get() }
+
+        assertThat(intE.getSnapshot()).isEqualTo(2)
+
+        var updateCount = 0
+        intE.onValueChanged += { ++updateCount }
+
+        assertThat(updateCount).isEqualTo(0)
+
+        intA.set(2)
+        assertThat(intE.getSnapshot()).isEqualTo(4)
+        assertThat(updateCount).isEqualTo(1)
     }
 
     @Test
@@ -202,5 +285,33 @@ class LiveGraphTest {
             live2.freeze()
             assertThat(testGraph.nodeCount).isEqualTo(0)
         }
+    }
+
+    @Test
+    fun graphUpdateHandlesException() {
+        val testGraph = LiveGraph(RunImmediatelyExecutor())
+        val lively = Lively(testGraph)
+
+        val liveInt = lively.createInt(1)
+        // Throws if liveInt is set to 0
+        val liveFragile = lively.create { 20 / liveInt.get() }
+
+        assertThat(liveFragile.getSnapshot()).isEqualTo(20)
+        liveInt.set(2)
+        assertThat(liveFragile.getSnapshot()).isEqualTo(10)
+
+        assertThrows<ArithmeticException> { liveInt.set(0) }
+        assertThat(liveFragile.getSnapshot()).isEqualTo(10) // Not updated due to exception
+
+        // We can even recover
+        liveInt.set(20)
+        assertThat(liveFragile.getSnapshot()).isEqualTo(1)
+
+        // Throw an exception one more time, to verify we don't leave any pending updates
+        // behind if it happens.
+        assertThat(testGraph.nodeCount).isEqualTo(2)
+        assertThrows<ArithmeticException> { liveInt.set(0) }
+        liveInt.freeze()
+        assertThat(testGraph.nodeCount).isEqualTo(0) // Indirectly verifies 0 pending updates
     }
 }
