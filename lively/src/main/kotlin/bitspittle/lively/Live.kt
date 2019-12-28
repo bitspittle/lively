@@ -152,7 +152,7 @@ private class LiveImpl<T>(
     }
 
     override fun toString(): String {
-        return "Live{${getSnapshot()}}"
+        return "Live{$value}"
     }
 }
 
@@ -185,6 +185,8 @@ class ObservingLive<T> internal constructor(
 
     override fun getSnapshot() = impl.getSnapshot()
     override fun freeze() = impl.freeze()
+
+    override fun toString() = impl.toString()
 }
 
 /**
@@ -210,4 +212,6 @@ class SourceLive<T> internal constructor(
             graph.notifyUpdated(this)
         }
     }
+
+    override fun toString() = impl.toString()
 }

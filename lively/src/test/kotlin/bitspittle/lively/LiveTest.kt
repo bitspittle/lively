@@ -12,6 +12,18 @@ import org.junit.Test
 
 class LiveTest {
     @Test
+    fun toStringWorks() {
+        val testGraph = LiveGraph(RunImmediatelyExecutor())
+        val lively = Lively(testGraph)
+
+        val sourceInt = lively.create(123)
+        val observingInt = lively.create { sourceInt.get() * 2 }
+
+        assertThat(sourceInt.toString()).isEqualTo("Live{123}")
+        assertThat(observingInt.toString()).isEqualTo("Live{246}")
+    }
+
+    @Test
     fun setAndGetSnapshotWork() {
         val testGraph = LiveGraph(RunImmediatelyExecutor())
         val lively = Lively(testGraph)
