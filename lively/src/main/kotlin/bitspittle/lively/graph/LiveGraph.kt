@@ -169,7 +169,7 @@ class LiveGraph(private val graphExecutor: Executor) {
             while (i < toProcess.size) {
                 val currLive = toProcess[i++].asObservingLive()
                 // If we encounter a node already in the pending updates list, move it to the
-                // back. This is useful for exmaple if:
+                // back. This is useful for example if:
                 // A <------------┐
                 // B <- C <- D <- E
                 // and you change A then B, the update order should be
