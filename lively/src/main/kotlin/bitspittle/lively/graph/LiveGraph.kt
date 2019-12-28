@@ -33,8 +33,8 @@ class LiveGraph(private val graphExecutor: Executor) {
             return lives.size.also {
                 if (lives.isEmpty()) {
                     assert(
-                        dependencies.isEmpty()
-                                && dependents.isEmpty()
+                        dependenciesMap.isEmpty()
+                                && dependentsMap.isEmpty()
                                 && pendingUpdates.isEmpty()
                                 && onValueChanged.isEmpty()
                                 && onFroze.isEmpty()
@@ -44,8 +44,8 @@ class LiveGraph(private val graphExecutor: Executor) {
         }
 
     private val lives: WeakSet<Live<*>> = mutableWeakSetOf()
-    private val dependencies: WeakMap<Live<*>, WeakSet<Live<*>>> = WeakHashMap()
-    private val dependents: WeakMap<Live<*>, WeakSet<Live<*>>> = WeakHashMap()
+    private val dependenciesMap: WeakMap<Live<*>, WeakSet<Live<*>>> = WeakHashMap()
+    private val dependentsMap: WeakMap<Live<*>, WeakSet<ObservingLive<*>>> = WeakHashMap()
 
     private val onValueChanged: MutableMap<Live<*>, MutableEvent<*>> = WeakHashMap()
     private val onFroze: MutableMap<Live<*>, MutableUnitEvent> = WeakHashMap()
@@ -66,64 +66,66 @@ class LiveGraph(private val graphExecutor: Executor) {
         lives.add(live)
     }
 
-    internal fun setDependencies(live: Live<*>, deps: Collection<Live<*>>) {
+    internal fun setDependencies(live: ObservingLive<*>, dependencies: Collection<Live<*>>) {
         if (!lives.contains(live)) {
             throw IllegalArgumentException("Graph cannot add dependencies for unknown live value: $live")
         }
 
-        if (deps.isEmpty()) {
-            if (!dependencies.contains(live)) {
+        if (dependencies.isEmpty()) {
+            if (!dependenciesMap.contains(live)) {
                 return // No-op
             }
         }
         else {
-            if (deps.any { !lives.contains(it) }) {
+            if (dependencies.any { !lives.contains(it) }) {
                 throw IllegalArgumentException(
                     """
                         Graph cannot add unknown live value as dependency.
 
                         Current Live: $live
-                        Bad dependency: ${deps.first { !lives.contains(it) }}
+                        Bad dependency: ${dependencies.first { !lives.contains(it) }}
 
                         Are you calling `get` on a value created from a different Lively?
                     """.trimIndent())
             }
-            val oldDeps = dependencies[live]
-            if (oldDeps != null && oldDeps.containsAll(deps) && deps.containsAll(oldDeps)) {
+            val oldDependencies = dependenciesMap[live]
+            if (oldDependencies != null &&
+                oldDependencies.containsAll(dependencies) &&
+                dependencies.containsAll(oldDependencies)) {
                 return // No-op
             }
         }
 
-        dependencies.getOrPut(live) { mutableWeakSetOf() }.apply {
-            forEach { oldDep ->
-                if (!deps.contains(oldDep)) {
-                    dependents.getValue(oldDep).apply {
+        dependenciesMap.getOrPut(live) { mutableWeakSetOf() }.apply {
+            forEach { oldDependency ->
+                if (!dependencies.contains(oldDependency)) {
+                    dependentsMap.getValue(oldDependency).apply {
                         remove(live)
                         if (this.isEmpty()) {
-                            dependents.remove(oldDep)
+                            dependentsMap.remove(oldDependency)
                         }
                     }
                 }
             }
             clear()
-            if (deps.isNotEmpty()) {
-                addAll(deps)
+            if (dependencies.isNotEmpty()) {
+                addAll(dependencies)
             }
         }
 
-        deps.forEach { dep ->
-            dependents.getOrPut(dep) { mutableWeakSetOf() }.apply {
+        dependencies.forEach { dependency ->
+            dependentsMap.getOrPut(dependency) { mutableWeakSetOf() }.apply {
                 if (!contains(live)) {
                     add(live)
                 }
             }
         }
 
-        if (deps.isEmpty()) {
+        if (dependencies.isEmpty()) {
             // Once an observing live value has no more dependencies, it will never change, so
             // just freeze it. Calling `ObservingLive#freeze` instead of `freeze` directly will
             // prevent infinite recursion.
-            live.asObservingLive().freeze()
+            live.freeze()
         }
     }
 
@@ -133,19 +135,19 @@ class LiveGraph(private val graphExecutor: Executor) {
             invoke()
             clear()
         }
-        setDependencies(live, emptyList())
-        dependents[live]?.forEach { dep ->
-            dependencies.getValue(dep).apply {
+        (live as? ObservingLive<*>)?.let { observingLive -> setDependencies(observingLive, emptyList()) }
+        dependentsMap[live]?.forEach { dep ->
+            dependenciesMap.getValue(dep).apply {
                 remove(live)
                 if (isEmpty()) {
                     // If our dependent no longer has any dependencies, then it will never change
                     // either!
-                    dep.asObservingLive().freeze()
+                    dep.freeze()
                 }
             }
         }
-        dependencies.remove(live)
-        dependents.remove(live)
+        dependenciesMap.remove(live)
+        dependentsMap.remove(live)
         lives.remove(live)
     }
 
@@ -162,12 +164,12 @@ class LiveGraph(private val graphExecutor: Executor) {
      */
     internal fun <T> notifyUpdated(live: SourceLive<T>) {
         fireOnValueChanged(live)
-        dependents[live]?.let { initialDeps ->
-            val toProcess = initialDeps.toMutableList()
+        dependentsMap[live]?.let { initialDependents ->
+            val toProcess = initialDependents.toMutableList()
 
             var i = 0
             while (i < toProcess.size) {
-                val currLive = toProcess[i++].asObservingLive()
+                val currLive = toProcess[i++]
                 // If we encounter a node already in the pending updates list, move it to the
                 // back. This is useful for example if:
                 // A <------------┐
@@ -178,7 +180,7 @@ class LiveGraph(private val graphExecutor: Executor) {
                 //  A, E, B, C, D
                 pendingUpdates.remove(currLive)
                 pendingUpdates.add(currLive)
-                dependents[currLive]?.let { moreDeps -> toProcess.addAll(moreDeps) }
+                dependentsMap[currLive]?.let { moreDependents -> toProcess.addAll(moreDependents) }
             }
 
             // Prevent future calls to `notifyUpdated` from adding duplicate update requests
@@ -206,13 +208,5 @@ class LiveGraph(private val graphExecutor: Executor) {
     private fun <T> fireOnValueChanged(live: Live<T>) {
         @Suppress("UNCHECKED_CAST") // Map only pairs Live<T> with LiveListener<T>
         (onValueChanged[live] as? MutableEvent<T>)?.invoke(live.getSnapshot())
-    }
-
-    /**
-     * Helper function for casting [Live] instances we KNOW depend on other [Live]s.
-     */
-    private fun <T> Live<T>.asObservingLive(): ObservingLive<T> {
-        assert (dependencies.contains(this))
-        return this as ObservingLive<T>
     }
 }
