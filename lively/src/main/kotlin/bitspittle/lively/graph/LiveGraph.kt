@@ -35,7 +35,7 @@ class LiveGraph(private val graphExecutor: Executor) {
                     assert(
                         dependenciesMap.isEmpty()
                                 && dependentsMap.isEmpty()
-                                && pendingUpdates.isEmpty()
+                                && updatesToProcess.isEmpty()
                                 && onValueChanged.isEmpty()
                                 && onFroze.isEmpty()
                     )
@@ -57,7 +57,7 @@ class LiveGraph(private val graphExecutor: Executor) {
      *
      * Value will be cleared once updates are finished processing.
      */
-    private val pendingUpdates: MutableSet<ObservingLive<*>> = LinkedHashSet()
+    private val updatesToProcess: MutableSet<SourceLive<*>> = LinkedHashSet()
 
     internal fun add(live: Live<*>) {
         if (lives.contains(live)) {
@@ -164,43 +164,52 @@ class LiveGraph(private val graphExecutor: Executor) {
      */
     internal fun <T> notifyUpdated(live: SourceLive<T>) {
         fireOnValueChanged(live)
-        dependentsMap[live]?.let { initialDependents ->
-            val toProcess = initialDependents.toMutableList()
+        if (dependentsMap[live]?.isEmpty() != false) return
 
-            var i = 0
-            while (i < toProcess.size) {
-                val currLive = toProcess[i++]
-                // If we encounter a node already in the pending updates list, move it to the
-                // back. This is useful for example if:
-                // A <------------┐
-                // B <- C <- D <- E
-                // and you change A then B, the update order should be
-                //  A, B, C, D, E
-                // not
-                //  A, E, B, C, D
-                pendingUpdates.remove(currLive)
-                pendingUpdates.add(currLive)
-                dependentsMap[currLive]?.let { moreDependents -> toProcess.addAll(moreDependents) }
-            }
+        val shouldSubmit = updatesToProcess.isEmpty()
+        updatesToProcess.add(live)
 
-            // Prevent future calls to `notifyUpdated` from adding duplicate update requests
+        if (shouldSubmit) {
             graphExecutor.submit {
-                try {
-                    // A live might have gotten frozen since we submitted this callback, so skip
-                    // them as they are no longer updatable.
-                    pendingUpdates.asSequence()
-                        .filter { currLive -> !currLive.frozen }
-                        .forEach { currLive ->
-                            if (currLive.update()) {
-                                fireOnValueChanged(currLive)
-                            }
+                assert(updatesToProcess.isNotEmpty())
+
+                // Create a list of all affected lives, expanded to include all their dependencies
+                // This may produce some duplicates but we'll deal with that in the next step.
+                val allAffectedLives = updatesToProcess.asSequence()
+                    .filter { sourceLive -> !sourceLive.frozen }
+                    .mapNotNull { sourceLive -> dependentsMap[sourceLive] }
+                    .flatMap { dependents -> dependents.asSequence() }
+                    .toMutableList()
+                updatesToProcess.clear()
+
+                var i = 0
+                while (i < allAffectedLives.size) {
+                    val currLive = allAffectedLives[i]
+                    dependentsMap[currLive]?.let { deps -> allAffectedLives.addAll(deps) }
+                    ++i
+                }
+
+                val pendingUpdates = LinkedHashSet<ObservingLive<*>>()
+                allAffectedLives.forEach { currLive ->
+                    // If we encounter a node already in the pending updates list, move it to the
+                    // back. This is useful for example if:
+                    // A <------------┐
+                    // B <- C <- D <- E
+                    // and you change A then B, the update order should be
+                    //  A, B, C, D, E
+                    // not
+                    //  A, E, B, C, D
+                    pendingUpdates.remove(currLive)
+                    pendingUpdates.add(currLive)
+                }
+
+                pendingUpdates.asSequence()
+                    .filter { observingLive -> !observingLive.frozen }
+                    .forEach { observingLive ->
+                        if (observingLive.update()) {
+                            fireOnValueChanged(observingLive)
                         }
-                }
-                finally {
-                    // currLive.update calls user code, so if it throws, it will break further
-                    // updates, but at least we won't leak memory
-                    pendingUpdates.clear()
-                }
+                    }
             }
         }
     }

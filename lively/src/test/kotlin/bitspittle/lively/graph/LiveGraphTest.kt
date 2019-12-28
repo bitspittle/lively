@@ -314,4 +314,73 @@ class LiveGraphTest {
         liveInt.freeze()
         assertThat(testGraph.nodeCount).isEqualTo(0) // Indirectly verifies 0 pending updates
     }
+
+    @Test
+    fun onValueChangedListenerCalledManyTimesButObserversOnlyFiredOnce() {
+        val executor = ManualExecutor()
+        val testGraph = LiveGraph(executor)
+        val lively = Lively(testGraph)
+
+        val liveInt = lively.createInt()
+        val liveStr = lively.create { liveInt.get().toString() }
+
+        var intUpdatedCount = 0
+        liveInt.onValueChanged += { ++intUpdatedCount }
+
+        var strUpdatedCount = 0
+        liveStr.onValueChanged += { ++strUpdatedCount }
+
+        for (i in 1..10) {
+            liveInt.set(i)
+        }
+
+        executor.runRemaining()
+        assertThat(liveStr.getSnapshot()).isEqualTo("10")
+        assertThat(intUpdatedCount).isEqualTo(10)
+        assertThat(strUpdatedCount).isEqualTo(1)
+
+    }
+
+    @Test
+    fun callingSetInAListenerDoesntCauseConcurrentModificationException() {
+        // The logic in LiveGraph#notifyUpdated used to fail if someone called "set"
+        // inside a listener, because that would also call notifyUpdated which was mid-processing.
+        // Now, the logic in the class is written to be robust against this sort of change
+
+        val executor = ManualExecutor()
+        val testGraph = LiveGraph(executor)
+        val lively = Lively(testGraph)
+
+        val liveInt1 = lively.createInt(0)
+        val liveInt2 = lively.create { liveInt1.get() * 10 }
+        val liveInt3 = lively.create { liveInt2.get() * 10 }
+
+        val updateOrder = mutableListOf<Pair<Int, Int>>()
+        liveInt1.onValueChanged += { value -> updateOrder.add(1 to value) }
+        liveInt2.onValueChanged += { value -> updateOrder.add(2 to value) }
+        liveInt3.onValueChanged += { value -> updateOrder.add(3 to value) }
+
+        liveInt2.onValueChanged += { value ->
+            if (value < 30) {
+                liveInt1.set(liveInt1.getSnapshot() + 1)
+            }
+        }
+
+        liveInt1.set(1)
+        executor.runRemaining()
+        assertThat(updateOrder)
+            .containsExactly(
+                1 to 1,
+                2 to 10, // fires int1.set(2) immediately
+                1 to 2,
+                3 to 100,
+                2 to 20, // fires int1.set(3) immediately
+                1 to 3,
+                3 to 200,
+                2 to 30,
+                3 to 300)
+            .inOrder()
+    }
+
+
 }
