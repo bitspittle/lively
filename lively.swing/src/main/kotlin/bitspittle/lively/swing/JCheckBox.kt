@@ -19,7 +19,7 @@ fun Lively.wrapSelected(checkBox: JCheckBox): SourceLive<Boolean> {
 
 fun Lively.wrapSelected(checkBox: JCheckBox, observe: LiveScope.() -> Boolean): ObservingLive<Boolean> {
     val liveSelected = create(observe)
-    listen { checkBox.isSelected = liveSelected.get() }
+    observe { checkBox.isSelected = liveSelected.get() }
 
     return liveSelected
 }

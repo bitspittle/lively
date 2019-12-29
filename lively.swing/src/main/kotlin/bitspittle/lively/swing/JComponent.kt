@@ -19,7 +19,7 @@ fun Lively.wrapEnabled(component: JComponent): SourceLive<Boolean> {
 
 fun Lively.wrapEnabled(component: JComponent, observe: LiveScope.() -> Boolean): ObservingLive<Boolean> {
     val liveEnabled = create(observe)
-    listen { component.isEnabled = liveEnabled.get() }
+    observe { component.isEnabled = liveEnabled.get() }
 
     return liveEnabled
 }

@@ -25,7 +25,7 @@ fun Lively.wrapText(label: JLabel): SourceLive<String> {
 
 fun Lively.wrapText(label: JLabel, observe: LiveScope.() -> String): ObservingLive<String> {
     val liveText = create(observe)
-    listen { label.setTextIfDifferent(liveText.get()) }
+    observe { label.setTextIfDifferent(liveText.get()) }
 
     return liveText
 }

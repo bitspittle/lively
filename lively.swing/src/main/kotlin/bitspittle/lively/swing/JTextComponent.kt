@@ -4,7 +4,6 @@ import bitspittle.lively.LiveScope
 import bitspittle.lively.Lively
 import bitspittle.lively.ObservingLive
 import bitspittle.lively.SourceLive
-import javax.swing.SwingUtilities
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.text.JTextComponent
@@ -41,6 +40,6 @@ fun Lively.wrapText(textComponent: JTextComponent): SourceLive<String> {
 
 fun Lively.wrapText(textComponent: JTextComponent, observe: LiveScope.() -> String): ObservingLive<String> {
     val liveText = create(observe)
-    listen { textComponent.setTextIfDifferent(liveText.get()) }
+    observe { textComponent.setTextIfDifferent(liveText.get()) }
     return liveText
 }

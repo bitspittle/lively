@@ -34,7 +34,7 @@ interface Live<T> {
      * Users of this class often actually want the live value (otherwise, why even using a `Live`
      * in the first place?). Therefore, in most cases, users should access this instance's value
      * via its `get` method, which is only made available inside an `observe` block, e.g. within
-     * [Lively.create] and [Lively.listen].
+     * [Lively.create] and [Lively.observe].
      *
      * To summarize:
      *

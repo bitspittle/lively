@@ -46,7 +46,7 @@ class LivelyTest {
 
                 assertThrows<IllegalStateException> { lively.create("Never created") }
                 assertThrows<IllegalStateException> { lively.create { false } }
-                assertThrows<IllegalStateException> { lively.listen { } }
+                assertThrows<IllegalStateException> { lively.observe { } }
                 assertThrows<IllegalStateException> { lively.freeze() }
 
                 // Querying the live value is allowed
@@ -106,13 +106,13 @@ class LivelyTest {
     }
 
     @Test
-    fun canCreateSideEffectsViaLivelyListen() {
+    fun canCreateSideEffectsViaLivelyObserve() {
         val testGraph = LiveGraph(RunImmediatelyExecutor())
         val lively = Lively(testGraph)
         val liveInt = lively.create(123)
 
         var sideEffectInt = 0
-        lively.listen {
+        lively.observe {
             sideEffectInt = liveInt.get()
         }
 
