@@ -215,7 +215,7 @@ class LiveGraph(private val graphExecutor: Executor) {
     }
 
     private fun <T> fireOnValueChanged(live: Live<T>) {
-        @Suppress("UNCHECKED_CAST") // Map only pairs Live<T> with LiveListener<T>
+        @Suppress("UNCHECKED_CAST") // Live<T> always mapped to MutableEvent<T>
         (onValueChanged[live] as? MutableEvent<T>)?.invoke(live.getSnapshot())
     }
 }
