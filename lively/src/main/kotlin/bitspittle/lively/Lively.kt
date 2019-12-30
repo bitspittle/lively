@@ -50,12 +50,12 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
      * one or more of the live values, e.g. setting a UI label based on a name changing, or
      * kicking off some expensive action as the result of a live parameter changing.
      */
-    fun observe(observe: LiveScope.() -> Unit) {
+    fun observe(observe: LiveScope.() -> Unit): SideEffect {
         checkValidStateFor("observe")
 
-        // Create an internal dummy node that only exists to run a side effect when any of its
-        // dependencies change.
-        lives.add(ObservingLive(graph, scope) { observe() })
+        // As an implementation detail, we actually create a live value for this under the hood,
+        // but the public API hides this fact.
+        return SideEffect(create(observe))
     }
 
     private fun checkValidStateFor(method: String) {

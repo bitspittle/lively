@@ -112,13 +112,17 @@ class LivelyTest {
         val liveInt = lively.create(123)
 
         var sideEffectInt = 0
-        lively.observe {
+        val sideEffect = lively.observe {
             sideEffectInt = liveInt.get()
         }
 
         assertThat(sideEffectInt).isEqualTo(123)
 
         liveInt.set(9000)
+        assertThat(sideEffectInt).isEqualTo(9000)
+
+        sideEffect.freeze()
+        liveInt.set(-1234)
         assertThat(sideEffectInt).isEqualTo(9000)
     }
 
