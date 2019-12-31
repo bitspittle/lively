@@ -121,9 +121,17 @@ class LivelyTest {
         liveInt.set(9000)
         assertThat(sideEffectInt).isEqualTo(9000)
 
+        var onFrozeCalled = false
+        sideEffect.onFroze += { onFrozeCalled = true }
+
+        assertThat(onFrozeCalled).isFalse()
+        assertThat(sideEffect.frozen).isFalse()
+
         sideEffect.freeze()
         liveInt.set(-1234)
         assertThat(sideEffectInt).isEqualTo(9000)
+        assertThat(onFrozeCalled).isTrue()
+        assertThat(sideEffect.frozen).isTrue()
     }
 
     @Test

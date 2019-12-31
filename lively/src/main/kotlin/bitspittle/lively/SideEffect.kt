@@ -11,7 +11,7 @@ package bitspittle.lively
  * a source).
  */
 class SideEffect(private val wrapped: FreezableLive<*>) {
-    fun freeze() {
-        wrapped.freeze()
-    }
+    val frozen get() = wrapped.frozen
+    val onFroze = wrapped.onFroze
+    fun freeze() = wrapped.freeze()
 }
