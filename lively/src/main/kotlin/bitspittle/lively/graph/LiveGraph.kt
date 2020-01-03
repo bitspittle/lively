@@ -51,13 +51,13 @@ class LiveGraph(private val graphExecutor: Executor) {
     private val onFroze: MutableMap<Live<*>, MutableUnitEvent> = WeakHashMap()
 
     /**
-     * Used to aggregate all updates across multiple calls to [notifyUpdated].
+     * Used to aggregate all updates across multiple calls to [handleUpdated].
      *
      * Update order matters! So we use a LinkedHashSet.
      *
      * Value will be cleared once updates are finished processing.
      */
-    private val updatesToProcess: MutableSet<SourceLive<*>> = LinkedHashSet()
+    private val updatesToProcess: MutableSet<ObservingLive<*>> = LinkedHashSet()
 
     internal fun add(live: Live<*>) {
         if (lives.contains(live)) {
@@ -162,54 +162,42 @@ class LiveGraph(private val graphExecutor: Executor) {
      * This method should only be called by a [SourceLive] *after* a user changed its
      * value.
      */
-    internal fun <T> notifyUpdated(live: SourceLive<T>) {
+    internal fun <T> handleUpdated(live: Live<T>) {
         fireOnValueChanged(live)
-        if (dependentsMap[live]?.isEmpty() != false) return
+        val dependents = dependentsMap[live] ?: return
 
-        val shouldSubmit = updatesToProcess.isEmpty()
-        updatesToProcess.add(live)
+        val shouldKickstartProcessing = updatesToProcess.isEmpty()
+        updatesToProcess.addAll(dependents)
 
-        if (shouldSubmit) {
-            graphExecutor.submit {
-                assert(updatesToProcess.isNotEmpty())
+        // Prevent unnecessary process request if this method was called while already processing.
+        if (shouldKickstartProcessing) {
+            processUpdates()
+        }
+    }
 
-                // Create a list of all affected lives, expanded to include all their dependencies
-                // This may produce some duplicates but we'll deal with that in the next step.
-                val allAffectedLives = updatesToProcess.asSequence()
-                    .filter { sourceLive -> !sourceLive.frozen }
-                    .mapNotNull { sourceLive -> dependentsMap[sourceLive] }
-                    .flatMap { dependents -> dependents.asSequence() }
-                    .toMutableList()
-                updatesToProcess.clear()
-
-                var i = 0
-                while (i < allAffectedLives.size) {
-                    val currLive = allAffectedLives[i]
-                    dependentsMap[currLive]?.let { deps -> allAffectedLives.addAll(deps) }
-                    ++i
+    private fun processUpdates() {
+        graphExecutor.submit {
+            while (updatesToProcess.isNotEmpty()) {
+                // Process the first live that doesn't depend on any other in the list
+                // This is useful for example if:
+                // A <------------┐
+                // B <- C <- D <- E
+                // and you change A then B, the update order should be
+                //  A, B, C, D, E
+                // not
+                //  A, E, B, C, D
+                // More explicitly:
+                // A'             -> to process: [E]
+                // B'             -> to process: [E, C]
+                // C is processed -> to process: [E, D]
+                // D is processed -> to process: [E]
+                // E is processed -> to process: []
+                val nextToProcess =
+                    updatesToProcess.reduce { live1, live2 -> if (live1.dependsOn(live2)) live2 else live1 }
+                updatesToProcess.remove(nextToProcess)
+                if (!nextToProcess.frozen && nextToProcess.update()) {
+                    handleUpdated(nextToProcess) // Note: may add values to `updatesToProcess`
                 }
-
-                val pendingUpdates = LinkedHashSet<ObservingLive<*>>()
-                allAffectedLives.forEach { currLive ->
-                    // If we encounter a node already in the pending updates list, move it to the
-                    // back. This is useful for example if:
-                    // A <------------┐
-                    // B <- C <- D <- E
-                    // and you change A then B, the update order should be
-                    //  A, B, C, D, E
-                    // not
-                    //  A, E, B, C, D
-                    pendingUpdates.remove(currLive)
-                    pendingUpdates.add(currLive)
-                }
-
-                pendingUpdates.asSequence()
-                    .filter { observingLive -> !observingLive.frozen }
-                    .forEach { observingLive ->
-                        if (observingLive.update()) {
-                            fireOnValueChanged(observingLive)
-                        }
-                    }
             }
         }
     }
@@ -217,5 +205,21 @@ class LiveGraph(private val graphExecutor: Executor) {
     private fun <T> fireOnValueChanged(live: Live<T>) {
         @Suppress("UNCHECKED_CAST") // Live<T> always mapped to MutableEvent<T>
         (onValueChanged[live] as? MutableEvent<T>)?.invoke(live.getSnapshot())
+    }
+
+    private fun ObservingLive<*>.dependsOn(other: Live<*>): Boolean {
+        val allDependents = dependentsMap[other]?.toMutableList() ?: return false
+
+        var i = 0
+        while (i < allDependents.size) {
+            val currLive = allDependents[i]
+            if (currLive == this) {
+                return true
+            }
+            dependentsMap[currLive]?.let { allDependents.addAll(it) }
+            ++i
+        }
+
+        return false
     }
 }

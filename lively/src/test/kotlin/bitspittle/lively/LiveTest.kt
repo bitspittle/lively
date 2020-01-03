@@ -51,12 +51,12 @@ class LiveTest {
         assertThat(liveStr1.getSnapshot()).isEqualTo("123")
         assertThat(liveStr2.getSnapshot()).isEqualTo("321")
 
-        executor.runNext()
+        executor.runRemaining()
         assertThat(liveStr1.getSnapshot()).isEqualTo("456")
         assertThat(liveStr2.getSnapshot()).isEqualTo("654")
 
         liveInt.set(789)
-        executor.runNext()
+        executor.runRemaining()
         assertThat(liveStr1.getSnapshot()).isEqualTo("789")
         assertThat(liveStr2.getSnapshot()).isEqualTo("987")
     }

@@ -372,11 +372,9 @@ class LiveGraphTest {
             .containsExactly(
                 1 to 1,
                 2 to 10, // fires int1.set(2) immediately
-                1 to 2,
-                3 to 100,
+                1 to 2,  // int1 updates before int3, because int3 depends on int1
                 2 to 20, // fires int1.set(3) immediately
                 1 to 3,
-                3 to 200,
                 2 to 30,
                 3 to 300)
             .inOrder()

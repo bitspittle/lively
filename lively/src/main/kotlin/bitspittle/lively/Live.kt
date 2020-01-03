@@ -209,7 +209,7 @@ class SourceLive<T> internal constructor(
     override fun set(value: T) {
         impl.checkValidStateFor("set")
         if (impl.setDirectly(value)) {
-            graph.notifyUpdated(this)
+            graph.handleUpdated(this)
         }
     }
 
