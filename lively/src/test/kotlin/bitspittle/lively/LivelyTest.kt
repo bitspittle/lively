@@ -1,7 +1,7 @@
 package bitspittle.lively
 
 import bitspittle.lively.exec.RunImmediatelyExecutor
-import bitspittle.lively.extensions.createInt
+import bitspittle.lively.extensions.sourceInt
 import bitspittle.lively.graph.LiveGraph
 import bitspittle.truthish.assertThat
 import bitspittle.truthish.assertThrows
@@ -13,8 +13,8 @@ class LivelyTest {
     @Test
     fun defaultExecutorThrowsException() {
         val lively = Lively()
-        val int1 = lively.create(123)
-        lively.create { int1.get() }
+        val int1 = lively.source(123)
+        lively.observing { int1.get() }
 
         assertThrows<IllegalStateException> {
             int1.set(200)
@@ -31,7 +31,7 @@ class LivelyTest {
         val threads = listOf(
             Thread {
                 lively = Lively()
-                liveInt = lively.create(123)
+                liveInt = lively.source(123)
                 latchValuesSet.countDown()
                 latchThread2Finished.await()
                 assertThat(liveInt.frozen).isFalse()
@@ -44,9 +44,9 @@ class LivelyTest {
                 assertThrows<IllegalStateException> { liveInt.onValueChanged += {} }
                 assertThrows<IllegalStateException> { liveInt.onFroze += {} }
 
-                assertThrows<IllegalStateException> { lively.create("Never created") }
-                assertThrows<IllegalStateException> { lively.create { false } }
-                assertThrows<IllegalStateException> { lively.observe { } }
+                assertThrows<IllegalStateException> { lively.source("Never created") }
+                assertThrows<IllegalStateException> { lively.observing { false } }
+                assertThrows<IllegalStateException> { lively.sideEffect { } }
                 assertThrows<IllegalStateException> { lively.freeze() }
 
                 // Querying the live value is allowed
@@ -76,9 +76,9 @@ class LivelyTest {
         val lively2 = Lively(testGraph)
         val lively3 = Lively(testGraph)
 
-        val int1 = lively1.createInt(123)
-        val dbl2 = lively2.create { int1.get().toDouble() / 10.0 }
-        val str3 = lively3.create { dbl2.get().toString() }
+        val int1 = lively1.sourceInt(123)
+        val dbl2 = lively2.observing { int1.get().toDouble() / 10.0 }
+        val str3 = lively3.observing { dbl2.get().toString() }
 
         assertThat(str3.getSnapshot()).isEqualTo("12.3")
 
@@ -100,19 +100,19 @@ class LivelyTest {
         val lively1 = Lively(testGraph1)
         val lively2 = Lively(testGraph2)
 
-        val int1 = lively1.createInt()
+        val int1 = lively1.sourceInt()
 
-        assertThrows<IllegalArgumentException> { lively2.create { int1.get() } }
+        assertThrows<IllegalArgumentException> { lively2.observing { int1.get() } }
     }
 
     @Test
     fun canCreateSideEffectsViaLivelyObserve() {
         val testGraph = LiveGraph(RunImmediatelyExecutor())
         val lively = Lively(testGraph)
-        val liveInt = lively.create(123)
+        val liveInt = lively.source(123)
 
         var sideEffectInt = 0
-        val sideEffect = lively.observe {
+        val sideEffect = lively.sideEffect {
             sideEffectInt = liveInt.get()
         }
 
@@ -139,11 +139,11 @@ class LivelyTest {
         val testGraph = LiveGraph(RunImmediatelyExecutor())
         val lively = Lively(testGraph)
 
-        val live1 = lively.create(123)
-        val live2 = lively.create(true)
-        val live3 = lively.create { live1.get().toString() + live2.get().toString() }
-        val live4 = lively.create { live3.get().reversed() }
-        lively.create { live1.get() + live4.get().length }
+        val live1 = lively.source(123)
+        val live2 = lively.source(true)
+        val live3 = lively.observing { live1.get().toString() + live2.get().toString() }
+        val live4 = lively.observing { live3.get().reversed() }
+        lively.observing { live1.get() + live4.get().length }
 
         assertThat(testGraph.nodeCount).isEqualTo(5)
         lively.freeze()

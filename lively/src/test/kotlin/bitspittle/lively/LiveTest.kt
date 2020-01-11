@@ -2,9 +2,7 @@ package bitspittle.lively
 
 import bitspittle.lively.exec.ManualExecutor
 import bitspittle.lively.exec.RunImmediatelyExecutor
-import bitspittle.lively.extensions.createBool
-import bitspittle.lively.extensions.createInt
-import bitspittle.lively.extensions.createString
+import bitspittle.lively.extensions.sourceBool
 import bitspittle.lively.graph.LiveGraph
 import bitspittle.truthish.assertThat
 import bitspittle.truthish.assertThrows
@@ -16,8 +14,8 @@ class LiveTest {
         val testGraph = LiveGraph(RunImmediatelyExecutor())
         val lively = Lively(testGraph)
 
-        val sourceInt = lively.create(123)
-        val observingInt = lively.create { sourceInt.get() * 2 }
+        val sourceInt = lively.source(123)
+        val observingInt = lively.observing { sourceInt.get() * 2 }
 
         assertThat(sourceInt.toString()).isEqualTo("Live{123}")
         assertThat(observingInt.toString()).isEqualTo("Live{246}")
@@ -27,7 +25,7 @@ class LiveTest {
     fun setAndGetSnapshotWork() {
         val testGraph = LiveGraph(RunImmediatelyExecutor())
         val lively = Lively(testGraph)
-        val liveInt = lively.create(123)
+        val liveInt = lively.source(123)
         assertThat(liveInt.getSnapshot()).isEqualTo(123)
 
         liveInt.set(456)
@@ -40,11 +38,11 @@ class LiveTest {
         val testGraph = LiveGraph(executor)
 
         val lively = Lively(testGraph)
-        val liveInt = lively.create(123)
-        val liveStr1 = lively.create { liveInt.get().toString() }
+        val liveInt = lively.source(123)
+        val liveStr1 = lively.observing { liveInt.get().toString() }
         assertThat(liveStr1.getSnapshot()).isEqualTo("123")
 
-        val liveStr2 = lively.create { liveStr1.get().reversed() }
+        val liveStr2 = lively.observing { liveStr1.get().reversed() }
         assertThat(liveStr2.getSnapshot()).isEqualTo("321")
 
         liveInt.set(456)
@@ -68,8 +66,8 @@ class LiveTest {
 
         val lively = Lively(testGraph)
 
-        val liveStr = lively.create("987")
-        val liveInt = lively.create { liveStr.get().toInt() }
+        val liveStr = lively.source("987")
+        val liveInt = lively.observing { liveStr.get().toInt() }
 
         var strChanged = false
         var intChanged = false
@@ -99,11 +97,11 @@ class LiveTest {
 
         val lively = Lively(testGraph)
 
-        val switch = lively.createBool()
-        val intTrue = lively.createInt(1)
-        val intFalse = lively.createInt(0)
+        val switch = lively.sourceBool()
+        val intTrue = lively.source(1)
+        val intFalse = lively.source(0)
 
-        val finalInt = lively.create {
+        val finalInt = lively.observing {
             if (switch.get()) intTrue.get() else intFalse.get()
         }
 
@@ -127,7 +125,7 @@ class LiveTest {
     @Test
     fun cannotModifyLiveValueAfterFreezing() {
         val lively = Lively(LiveGraph(RunImmediatelyExecutor()))
-        val liveStr = lively.createString("initial")
+        val liveStr = lively.source("initial")
 
         var wasFrozen = false
         liveStr.onFroze += { wasFrozen = true }
@@ -163,9 +161,9 @@ class LiveTest {
         val lively = Lively(testGraph)
 
         // A -> B -> C
-        val liveStrC = lively.create("initial value")
-        val liveStrB = lively.create { liveStrC.get() }
-        val liveStrA = lively.create { liveStrB.get() }
+        val liveStrC = lively.source("initial value")
+        val liveStrB = lively.observing { liveStrC.get() }
+        val liveStrA = lively.observing { liveStrB.get() }
 
         assertThat(liveStrA.getSnapshot()).isEqualTo("initial value")
 
@@ -181,11 +179,11 @@ class LiveTest {
         val executor = ManualExecutor()
         val lively = Lively(LiveGraph(executor))
 
-        val toFreezeNow = lively.create(1).apply { freeze() }
-        val toFreezeLater = lively.create(2)
-        val neverFrozen = lively.create(3)
+        val toFreezeNow = lively.source(1).apply { freeze() }
+        val toFreezeLater = lively.source(2)
+        val neverFrozen = lively.source(3)
 
-        val sum = lively.create { toFreezeNow.get() + toFreezeLater.get() + neverFrozen.get() }
+        val sum = lively.observing { toFreezeNow.get() + toFreezeLater.get() + neverFrozen.get() }
         assertThat(sum.getSnapshot()).isEqualTo(6)
 
         toFreezeLater.freeze()
@@ -205,8 +203,8 @@ class LiveTest {
         val executor = ManualExecutor()
 
         val lively = Lively(LiveGraph(executor))
-        val liveUser = lively.create(userJoe)
-        val liveDisplay = lively.create { "Name: ${liveUser.get().name}" }
+        val liveUser = lively.source(userJoe)
+        val liveDisplay = lively.observing { "Name: ${liveUser.get().name}" }
 
         var nameUpdatedCount = 0
         liveDisplay.onValueChanged += { ++nameUpdatedCount }

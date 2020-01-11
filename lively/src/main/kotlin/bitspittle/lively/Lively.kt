@@ -29,7 +29,7 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
     /**
      * Create a live instance from a fixed value.
      */
-    fun <T> create(initialValue: T): SourceLive<T> {
+    fun <T> source(initialValue: T): SourceLive<T> {
         checkValidStateFor("create")
 
         return SourceLive(graph, scope, initialValue).also { lives.add(it) }
@@ -38,7 +38,7 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
     /**
      * Create a live instance that depends on target live instances.
      */
-    fun <T> create(observe: LiveScope.() -> T): ObservingLive<T> {
+    fun <T> observing(observe: LiveScope.() -> T): ObservingLive<T> {
         checkValidStateFor("create")
 
         return ObservingLive(graph, scope, observe).also { lives.add(it) }
@@ -50,12 +50,12 @@ class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
      * one or more of the live values, e.g. setting a UI label based on a name changing, or
      * kicking off some expensive action as the result of a live parameter changing.
      */
-    fun observe(observe: LiveScope.() -> Unit): SideEffect {
+    fun sideEffect(observe: LiveScope.() -> Unit): SideEffect {
         checkValidStateFor("observe")
 
         // As an implementation detail, we actually create a live value for this under the hood,
         // but the public API hides this fact.
-        return SideEffect(create(observe))
+        return SideEffect(observing(observe))
     }
 
     private fun checkValidStateFor(method: String) {

@@ -8,7 +8,7 @@ import java.awt.event.ActionListener
 import javax.swing.JCheckBox
 
 fun Lively.wrapSelected(checkBox: JCheckBox): SourceLive<Boolean> {
-    val liveSelected = create(checkBox.isSelected)
+    val liveSelected = source(checkBox.isSelected)
     val selectedListener = ActionListener { liveSelected.set(checkBox.isSelected) }
     checkBox.addActionListener(selectedListener)
     liveSelected.onValueChanged += { checkBox.isSelected = it }
@@ -18,8 +18,8 @@ fun Lively.wrapSelected(checkBox: JCheckBox): SourceLive<Boolean> {
 }
 
 fun Lively.wrapSelected(checkBox: JCheckBox, observe: LiveScope.() -> Boolean): ObservingLive<Boolean> {
-    val liveSelected = create(observe)
-    observe { checkBox.isSelected = liveSelected.get() }
+    val liveSelected = observing(observe)
+    sideEffect { checkBox.isSelected = liveSelected.get() }
 
     return liveSelected
 }

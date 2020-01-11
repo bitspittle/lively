@@ -14,7 +14,7 @@ import bitspittle.lively.graph.LiveGraph
  * values depending on it).
  *
  * Users do not create instances directly; instead, they should instantiate a [Lively] and use that
- * as a live factory instead. See also: [Lively.create]
+ * instead. See also: [Lively.source] and [Lively.observing].
  *
  * When a live instance is created, it is associated with a thread, and any attempt to access it
  * off-thread will throw an exception.
@@ -34,21 +34,21 @@ interface Live<T> {
      * Users of this class often actually want the live value (otherwise, why even using a `Live`
      * in the first place?). Therefore, in most cases, users should access this instance's value
      * via its `get` method, which is only made available inside an `observe` block, e.g. within
-     * [Lively.create] and [Lively.observe].
+     * [Lively.observing] and [Lively.sideEffect].
      *
      * To summarize:
      *
      * ```
      * # Set only once...
-     * liveSrc = lively.create("hello")
-     * liveDst = lively.create(liveSrc.getSnapshot())
+     * liveSrc = lively.source("hello")
+     * liveDst = lively.source(liveSrc.getSnapshot())
      * // liveDst equals "hello"
      * liveSrc.set("world")
      * // liveDst still equals "hello"
      *
      * # Kept in sync...
-     * liveSrc = lively.create("hello")
-     * liveDst = lively.create { liveSrc.get() }
+     * liveSrc = lively.source("hello")
+     * liveDst = lively.observing { liveSrc.get() }
      * // liveDst equals "hello"
      * liveSrc.set("world")
      * // liveDst updated to "world"

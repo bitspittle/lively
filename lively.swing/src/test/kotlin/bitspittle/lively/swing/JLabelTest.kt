@@ -2,7 +2,6 @@ package bitspittle.lively.swing
 
 import bitspittle.lively.Lively
 import bitspittle.lively.exec.RunImmediatelyExecutor
-import bitspittle.lively.extensions.createString
 import bitspittle.lively.graph.LiveGraph
 import bitspittle.truthish.assertThat
 import org.junit.Test
@@ -20,7 +19,7 @@ class JLabelTest {
         val liveText = lively.wrapText(label)
         assertThat(label.componentListeners.isNotEmpty())
 
-        val allCaps = lively.create { liveText.get().toUpperCase() }
+        val allCaps = lively.observing { liveText.get().toUpperCase() }
         assertThat(liveText.getSnapshot()).isEqualTo("Initial text")
         assertThat(allCaps.getSnapshot()).isEqualTo("INITIAL TEXT")
 
@@ -44,7 +43,7 @@ class JLabelTest {
         val label = JLabel("Dummy text")
         assertThat(label.componentListeners.isEmpty())
 
-        val liveStr = lively.createString("New text")
+        val liveStr = lively.source("New text")
 
         val liveText = lively.wrapText(label) { liveStr.get() }
         assertThat(label.componentListeners.isEmpty())

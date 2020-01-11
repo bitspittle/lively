@@ -29,7 +29,7 @@ class DocumentAdapter(private val onChanged: () -> Unit) : DocumentListener {
 }
 
 fun Lively.wrapText(textComponent: JTextComponent): SourceLive<String> {
-    val liveText = create(textComponent.text)
+    val liveText = source(textComponent.text)
     val docListener = DocumentAdapter { liveText.set(textComponent.text) }
     textComponent.document.addDocumentListener(docListener)
     liveText.onValueChanged += { textComponent.setTextIfDifferent(it) }
@@ -39,7 +39,7 @@ fun Lively.wrapText(textComponent: JTextComponent): SourceLive<String> {
 }
 
 fun Lively.wrapText(textComponent: JTextComponent, observe: LiveScope.() -> String): ObservingLive<String> {
-    val liveText = create(observe)
-    observe { textComponent.setTextIfDifferent(liveText.get()) }
+    val liveText = observing(observe)
+    sideEffect { textComponent.setTextIfDifferent(liveText.get()) }
     return liveText
 }

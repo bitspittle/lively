@@ -14,8 +14,8 @@ class LiveScope internal constructor(private val graph: LiveGraph) {
     /**
      * Gets the *live* value of this [Live].
      *
-     * This method is only accessible inside a scoped block. See also: [Lively.create] and
-     * [Lively.observe].
+     * This method is only accessible inside a scoped block. See also: [Lively.observing] and
+     * [Lively.sideEffect].
      *
      * This not only returns the value of the live instance, but it also updates the backing graph,
      * so that any future changes made to this instance will also notify any dependent live
@@ -24,9 +24,9 @@ class LiveScope internal constructor(private val graph: LiveGraph) {
      * For example, in this block:
      *
      * ```
-     * val firstName = lively.create("John")
-     * val lastName = lively.create("Doe")
-     * val fullName = lively.create { "${firstName.get()} ${lastName.get()}" }
+     * val firstName = lively.source("John")
+     * val lastName = lively.source("Doe")
+     * val fullName = lively.observing { "${firstName.get()} ${lastName.get()}" }
      * ```
      *
      * we've both set up that `fullName` is set to `John Doe` and also that any time either the
@@ -36,10 +36,10 @@ class LiveScope internal constructor(private val graph: LiveGraph) {
      * Dependencies can even change dynamically:
      *
      * ```
-     * val showNickname = lively.create(false)
-     * val name = lively.create("Steve")
-     * val nickname = lively.create("Sir Stevey")
-     * val display = lively.create {
+     * val showNickname = lively.source(false)
+     * val name = lively.source("Steve")
+     * val nickname = lively.source("Sir Stevey")
+     * val display = lively.observing {
      *   if (showNickname.get()) nickname.get() else name.get()
      * }
      * ```

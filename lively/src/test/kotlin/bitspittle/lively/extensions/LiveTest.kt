@@ -1,7 +1,6 @@
 package bitspittle.lively.extensions
 
 import bitspittle.lively.Lively
-import bitspittle.lively.SourceLive
 import bitspittle.lively.exec.RunImmediatelyExecutor
 import bitspittle.lively.graph.LiveGraph
 import bitspittle.truthish.assertThat
@@ -15,9 +14,9 @@ class LiveTest {
     fun twoLivesWithDifferentTypesCanBeTwoWayBound() {
         val lively = Lively(LiveGraph(RunImmediatelyExecutor()))
 
-        val liveInt = lively.createInt(123)
-        val liveStr = lively.createString()
-        val inSync = lively.create { liveInt.get().toString() == liveStr.get() }
+        val liveInt = lively.sourceInt(123)
+        val liveStr = lively.sourceString()
+        val inSync = lively.observing { liveInt.get().toString() == liveStr.get() }
         liveStr.bindTo(liveInt, { strVal -> strVal.toIntOrNull() }, { intVal -> intVal.toString() })
 
         assertThat(liveInt.getSnapshot()).isEqualTo(123)
@@ -51,8 +50,8 @@ class LiveTest {
     fun twoLivesWithTheSameTypesCanBeTwoWayBound() {
         val lively = Lively(LiveGraph(RunImmediatelyExecutor()))
 
-        val liveStr1 = lively.createString("will get overwritten")
-        val liveStr2 = lively.createString("initial value")
+        val liveStr1 = lively.source("will get overwritten")
+        val liveStr2 = lively.source("initial value")
         liveStr1.bindTo(liveStr2)
 
         assertThat(liveStr1.getSnapshot()).isEqualTo("initial value")

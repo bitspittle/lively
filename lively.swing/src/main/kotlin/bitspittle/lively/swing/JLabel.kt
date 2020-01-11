@@ -14,7 +14,7 @@ private fun JLabel.setTextIfDifferent(newText: String) {
 }
 
 fun Lively.wrapText(label: JLabel): SourceLive<String> {
-    val liveText = create(label.text)
+    val liveText = source(label.text)
     val textListener = PropertyChangeListener { liveText.set(label.text) }
     label.addPropertyChangeListener("text", textListener)
     liveText.onValueChanged += { label.setTextIfDifferent(it) }
@@ -24,8 +24,8 @@ fun Lively.wrapText(label: JLabel): SourceLive<String> {
 }
 
 fun Lively.wrapText(label: JLabel, observe: LiveScope.() -> String): ObservingLive<String> {
-    val liveText = create(observe)
-    observe { label.setTextIfDifferent(liveText.get()) }
+    val liveText = observing(observe)
+    sideEffect { label.setTextIfDifferent(liveText.get()) }
 
     return liveText
 }

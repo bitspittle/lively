@@ -8,7 +8,7 @@ import java.beans.PropertyChangeListener
 import javax.swing.JComponent
 
 fun Lively.wrapEnabled(component: JComponent): SourceLive<Boolean> {
-    val liveEnabled = create(component.isEnabled)
+    val liveEnabled = source(component.isEnabled)
     val enabledListener = PropertyChangeListener { liveEnabled.set(component.isEnabled) }
     component.addPropertyChangeListener("enabled", enabledListener)
     liveEnabled.onValueChanged += { component.isEnabled = it }
@@ -18,8 +18,8 @@ fun Lively.wrapEnabled(component: JComponent): SourceLive<Boolean> {
 }
 
 fun Lively.wrapEnabled(component: JComponent, observe: LiveScope.() -> Boolean): ObservingLive<Boolean> {
-    val liveEnabled = create(observe)
-    observe { component.isEnabled = liveEnabled.get() }
+    val liveEnabled = observing(observe)
+    sideEffect { component.isEnabled = liveEnabled.get() }
 
     return liveEnabled
 }

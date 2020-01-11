@@ -5,7 +5,8 @@ import bitspittle.lively.Lively
 import bitspittle.lively.exec.Executor
 import bitspittle.lively.exec.ManualExecutor
 import bitspittle.lively.exec.RunImmediatelyExecutor
-import bitspittle.lively.extensions.createInt
+import bitspittle.lively.extensions.sourceBool
+import bitspittle.lively.extensions.sourceInt
 import bitspittle.truthish.assertThat
 import bitspittle.truthish.assertThrows
 import org.junit.Test
@@ -50,8 +51,8 @@ class LiveGraphTest {
         val liveGraph = LiveGraph(sneakyExecutor)
         val lively = Lively(liveGraph)
 
-        val liveInt1 = lively.create(123)
-        val liveInt2 = lively.create { liveInt1.get() * 2 }
+        val liveInt1 = lively.source(123)
+        val liveInt2 = lively.observing { liveInt1.get() * 2 }
 
         assertThat(liveInt2.getSnapshot()).isEqualTo(246)
 
@@ -74,9 +75,9 @@ class LiveGraphTest {
             testGraph = LiveGraph(RunImmediatelyExecutor())
             val lively = Lively(testGraph)
             @Suppress("UNUSED_VARIABLE") // Var created for readability
-            val liveOrphan = lively.createInt()
-            val liveSrc = lively.createInt()
-            val liveDst = lively.create { liveSrc.get() }
+            val liveOrphan = lively.sourceInt()
+            val liveSrc = lively.sourceInt()
+            val liveDst = lively.observing { liveSrc.get() }
 
             assertThat(testGraph.nodeCount).isEqualTo(3)
             weakLively = WeakReference(lively)
@@ -106,12 +107,12 @@ class LiveGraphTest {
         val testGraph = LiveGraph(executor)
         val lively = Lively(testGraph)
 
-        val switch = lively.create(false)
+        val switch = lively.sourceBool()
 
-        val dummyInt1 = lively.create(10)
-        val dummyInt2 = lively.create(10)
-        val middleInt = lively.create { if (switch.get()) dummyInt1.get() else dummyInt2.get() }
-        val finalInt = lively.create { middleInt.get() }
+        val dummyInt1 = lively.source(10)
+        val dummyInt2 = lively.source(10)
+        val middleInt = lively.observing { if (switch.get()) dummyInt1.get() else dummyInt2.get() }
+        val finalInt = lively.observing { middleInt.get() }
 
         assertThat(finalInt.getSnapshot()).isEqualTo(10)
 
@@ -138,10 +139,10 @@ class LiveGraphTest {
         val testGraph = LiveGraph(executor)
         val lively = Lively(testGraph)
 
-        val int1 = lively.create(1)
-        val int2 = lively.create(2)
-        val int3 = lively.create(3)
-        val sum = lively.create { int1.get() + int2.get() + int3.get() }
+        val int1 = lively.source(1)
+        val int2 = lively.source(2)
+        val int3 = lively.source(3)
+        val sum = lively.observing { int1.get() + int2.get() + int3.get() }
 
         var count = 0
         sum.onValueChanged += { ++count }
@@ -181,13 +182,13 @@ class LiveGraphTest {
         val testGraph = LiveGraph(executor)
         val lively = Lively(testGraph)
 
-        val intA = lively.createInt(1)
-        val intB = lively.createInt(10)
-        val intC = lively.createInt(100)
-        val intD = lively.create { intA.get() + intB.get() }
-        val intE = lively.create { intD.get() }
-        val intF = lively.create { intC.get() }
-        val intG = lively.create { intE.get() + intF.get() }
+        val intA = lively.source(1)
+        val intB = lively.source(10)
+        val intC = lively.source(100)
+        val intD = lively.observing { intA.get() + intB.get() }
+        val intE = lively.observing { intD.get() }
+        val intF = lively.observing { intC.get() }
+        val intG = lively.observing { intE.get() + intF.get() }
 
         var updatedCount = 0
         intG.onValueChanged += { ++updatedCount }
@@ -222,11 +223,11 @@ class LiveGraphTest {
         //
         // Instead, E should wait for both branches to propagate before getting updated itself
 
-        val intA = lively.create(1)
-        val intB = lively.create { intA.get() }
-        val intC = lively.create { intA.get() }
-        val intD = lively.create { intC.get() }
-        val intE = lively.create { intB.get() + intD.get() }
+        val intA = lively.source(1)
+        val intB = lively.observing { intA.get() }
+        val intC = lively.observing { intA.get() }
+        val intD = lively.observing { intC.get() }
+        val intE = lively.observing { intB.get() + intD.get() }
 
         assertThat(intE.getSnapshot()).isEqualTo(2)
 
@@ -246,11 +247,11 @@ class LiveGraphTest {
         val lively = Lively(testGraph)
 
         run {
-            val live1 = lively.create(123)
-            val live2 = lively.create(true)
-            val live3 = lively.create { live1.get().toString() + live2.get().toString() }
-            val live4 = lively.create { live3.get().reversed() }
-            val live5 = lively.create { live1.get() + live4.get().length }
+            val live1 = lively.source(123)
+            val live2 = lively.source(true)
+            val live3 = lively.observing { live1.get().toString() + live2.get().toString() }
+            val live4 = lively.observing { live3.get().reversed() }
+            val live5 = lively.observing { live1.get() + live4.get().length }
 
             assertThat(testGraph.nodeCount).isEqualTo(5)
 
@@ -272,11 +273,11 @@ class LiveGraphTest {
 
         // observing lives which have all their dependencies frozen are auto-frozen
         run {
-            val live1 = lively.create(123)
-            val live2 = lively.create(true)
-            val live3 = lively.create { live1.get().toString() + live2.get().toString() }
-            val live4 = lively.create { live3.get().reversed() }
-            lively.create { live1.get() + live4.get().length }
+            val live1 = lively.source(123)
+            val live2 = lively.source(true)
+            val live3 = lively.observing { live1.get().toString() + live2.get().toString() }
+            val live4 = lively.observing { live3.get().reversed() }
+            lively.observing { live1.get() + live4.get().length }
 
             assertThat(testGraph.nodeCount).isEqualTo(5)
 
@@ -292,9 +293,9 @@ class LiveGraphTest {
         val testGraph = LiveGraph(RunImmediatelyExecutor())
         val lively = Lively(testGraph)
 
-        val liveInt = lively.createInt(1)
+        val liveInt = lively.source(1)
         // Throws if liveInt is set to 0
-        val liveFragile = lively.create { 20 / liveInt.get() }
+        val liveFragile = lively.observing { 20 / liveInt.get() }
 
         assertThat(liveFragile.getSnapshot()).isEqualTo(20)
         liveInt.set(2)
@@ -321,8 +322,8 @@ class LiveGraphTest {
         val testGraph = LiveGraph(executor)
         val lively = Lively(testGraph)
 
-        val liveInt = lively.createInt()
-        val liveStr = lively.create { liveInt.get().toString() }
+        val liveInt = lively.sourceInt()
+        val liveStr = lively.observing { liveInt.get().toString() }
 
         var intUpdatedCount = 0
         liveInt.onValueChanged += { ++intUpdatedCount }
@@ -351,9 +352,9 @@ class LiveGraphTest {
         val testGraph = LiveGraph(executor)
         val lively = Lively(testGraph)
 
-        val liveInt1 = lively.createInt(0)
-        val liveInt2 = lively.create { liveInt1.get() * 10 }
-        val liveInt3 = lively.create { liveInt2.get() * 10 }
+        val liveInt1 = lively.sourceInt()
+        val liveInt2 = lively.observing { liveInt1.get() * 10 }
+        val liveInt3 = lively.observing { liveInt2.get() * 10 }
 
         val updateOrder = mutableListOf<Pair<Int, Int>>()
         liveInt1.onValueChanged += { value -> updateOrder.add(1 to value) }
