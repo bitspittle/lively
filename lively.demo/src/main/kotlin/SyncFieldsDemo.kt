@@ -8,7 +8,7 @@ import javax.swing.*
 
 
 fun main() {
-    Lively.executorFactory = { SwingExecutor() }
+    Lively.executor = SwingExecutor()
     SwingUtilities.invokeLater {
         SyncFieldsDemo()
     }

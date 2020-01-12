@@ -12,7 +12,7 @@ import bitspittle.lively.exec.Executor
 import java.util.*
 import kotlin.collections.LinkedHashSet
 
-private val graphThreadLocal = ThreadLocal.withInitial { LiveGraph(Lively.executorFactory()) }
+private val graphThreadLocal = ThreadLocal.withInitial { LiveGraph(Lively.executor) }
 
 private typealias WeakSet<E> = MutableSet<E>
 private typealias WeakMap<K, V> = MutableMap<K, V>

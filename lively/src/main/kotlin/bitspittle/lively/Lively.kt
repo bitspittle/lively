@@ -7,13 +7,12 @@ import bitspittle.lively.extensions.expectCurrent
 
 class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
     companion object {
-        var executorFactory: () -> Executor = {
+        var executor: Executor =
             ThrowingExecutor(
                 """
-                    To use Lively, you must first initialize `Lively.executorFactory` in your codebase.
-                    For example: `Lively.executorFactory = { RunImmediatelyExecutor() }`
+                    To use Lively, you must first initialize `Lively.executor` in your codebase.
+                    For example: `Lively.executor = RunImmediatelyExecutor()`
                 """.trimIndent())
-        }
     }
 
     private val scope = LiveScope(graph)
