@@ -1,4 +1,4 @@
-package bitspittle.lively.swing.demo
+package bitspittle.lively.demo.swing
 
 import bitspittle.lively.event.MutableUnitEvent
 import bitspittle.lively.event.UnitEvent

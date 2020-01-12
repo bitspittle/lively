@@ -1,4 +1,4 @@
-package bitspittle.lively.swing.demo
+package bitspittle.lively.demo.swing
 
 import bitspittle.lively.Lively
 import bitspittle.lively.swing.SwingExecutor
@@ -10,8 +10,8 @@ import javax.swing.*
 
 
 fun main() {
-    Lively.executor = SwingExecutor()
     SwingUtilities.invokeLater {
+        Lively.executor = SwingExecutor()
         SyncFieldsDemo()
     }
 }
