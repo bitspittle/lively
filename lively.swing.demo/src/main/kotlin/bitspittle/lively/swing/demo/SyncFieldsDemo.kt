@@ -1,3 +1,5 @@
+package bitspittle.lively.swing.demo
+
 import bitspittle.lively.Lively
 import bitspittle.lively.swing.SwingExecutor
 import bitspittle.lively.swing.wrapEnabled

@@ -1,3 +1,5 @@
+package bitspittle.lively.swing.demo
+
 import bitspittle.lively.event.MutableUnitEvent
 import bitspittle.lively.event.UnitEvent
 import java.awt.event.WindowAdapter
