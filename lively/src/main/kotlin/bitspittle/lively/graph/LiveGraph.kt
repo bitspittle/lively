@@ -19,7 +19,7 @@ private typealias WeakMap<K, V> = MutableMap<K, V>
 
 private fun <E> mutableWeakSetOf(): WeakSet<E> = Collections.newSetFromMap(WeakHashMap<E, Boolean>())
 
-class LiveGraph(private val graphExecutor: Executor) {
+class LiveGraph(private val executor: Executor) {
     companion object {
         val instance: LiveGraph
             get() = graphThreadLocal.get()
@@ -176,7 +176,7 @@ class LiveGraph(private val graphExecutor: Executor) {
     }
 
     private fun processUpdates() {
-        graphExecutor.submit {
+        executor.submit {
             while (updatesToProcess.isNotEmpty()) {
                 // Process the first live that doesn't depend on any other in the list
                 // This is useful for example if:
