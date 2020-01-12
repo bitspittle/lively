@@ -271,6 +271,9 @@ user update it to something more efficient only if they want to? This is a decis
 later, but at the moment, I'm worried about the discoverability of this feature, so I'm triggering
 a "fail fast" path for now, ensuring users can make an intentional decision here.*
 
+For additional information about executors, see the "Custom executor demo" section at the end of
+this document.
+
 ## getSnapshot vs get
 
 `Live#get` represents the concept of querying a `Live`'s value over time. In earlier examples, we
@@ -564,7 +567,9 @@ weightInput.bindTo(
 weightInput.freeze()
 ```
 
-## Swing demo
+## Demos
+
+### Swing demo
 
 A common use-case for a library like *Lively* is binding data models to UI views.
 
@@ -576,6 +581,13 @@ and the extension method `Lively.wrapSelected(checkBox: JCheckBox): SourceLive<B
 
 The `swing.demo` module presents isolated UI scenarios that highlight how to accomplish various
 goals using *Lively*.
+
+### Custom executor demo
+
+If you aren't building on top of an existing framework that has support for taking over a thread
+with its own event poller, then you'll have to create your own executor logic from scratch. This
+demo serves the purpose of showing a very simple executor implementation that you might base a more
+complex executor upon.
 
 ## Special thanks
 

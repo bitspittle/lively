@@ -8,4 +8,5 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
     implementation project(':lively')
     implementation project(':lively.swing')
+    implementation "io.github.bitspittle:truthish-jvm:$truthishVersion"
 }
