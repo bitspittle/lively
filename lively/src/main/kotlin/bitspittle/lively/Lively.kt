@@ -2,18 +2,29 @@ package bitspittle.lively
 
 import bitspittle.lively.exec.Executor
 import bitspittle.lively.exec.ThrowingExecutor
-import bitspittle.lively.graph.LiveGraph
 import bitspittle.lively.extensions.expectCurrent
+import bitspittle.lively.graph.LiveGraph
 
 class Lively(internal val graph: LiveGraph = LiveGraph.instance) {
     companion object {
-        var executor: Executor =
-            ThrowingExecutor(
-                """
-                    To use Lively, you must first initialize `Lively.executor` in your codebase.
-                    For example: `Lively.executor = RunImmediatelyExecutor()`
-                    Please see the "Lively Executor" section in the README for more information.
-                """.trimIndent())
+        // A map of one executor per thread
+        private var executorMap = mutableMapOf<Thread, Executor>()
+        var executor: Executor
+            get() {
+                return executorMap.getOrDefault(
+                    Thread.currentThread(),
+                    ThrowingExecutor(
+                        """
+                            To use Lively, you must first initialize `Lively.executor` in your codebase.
+                            For example: `Lively.executor = RunImmediatelyExecutor()`
+                            Please see the "Lively Executor" section in the README for more information.
+                        """.trimIndent()
+                    ))
+            }
+
+        set(value) {
+            executorMap[Thread.currentThread()] = value
+        }
     }
 
     private val scope = LiveScope(graph)
