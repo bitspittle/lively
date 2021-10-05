@@ -201,6 +201,17 @@ fun main() {
 }
 ```
 
+or, if you're writing a Swing application, Lively provides a `SwingExecutor` you can use:
+
+```kotlin
+fun main() {
+  SwingUtilities.invokeLater {
+    Lively.executor = SwingExecutor()
+    // You can now create your Swing app which uses Lively
+  }
+}
+```
+
 If you don't initialize an executor, then when you try to interact with Lively, it will throw an
 exception with a descriptive error message (that will hopefully get some users to read this
 section).
@@ -585,9 +596,14 @@ goals using *Lively*.
 ### Custom executor demo
 
 If you aren't building on top of an existing framework that has support for taking over a thread
-with its own event poller, then you'll have to create your own executor logic from scratch. This
-demo serves the purpose of showing a very simple executor implementation that you might base a more
+with its own event poller, then you'll have to create your own executor logic from scratch.
+[This demo](https://github.com/bitspittle/lively/blob/master/lively.demo/src/main/kotlin/bitspittle/lively/demo/CustomExecutorDemo.kt)
+serves the purpose of showing a very simple executor implementation that you might base a more
 complex executor upon.
+
+If you want to support batching multiple Lively updates in your own codebase, what you would need
+to do is collect all actions into some list along with some relevant moment (e.g. some update
+method) where you run through and execute all of them at the same time.
 
 ## Special thanks
 
