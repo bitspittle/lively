@@ -417,7 +417,7 @@ class User {
   private val _lastName = lively.sourceString()
   val firstName: Live<String> get() = _lastName
 
-  private val _fullName = lively.observing { "${firstName.get()} ${lastName.get()" }
+  private val _fullName = lively.observing { "${firstName.get()} ${lastName.get()}" }
   val fullName: Live<String> get() = _fullName
 
   fun randomizeName() {
